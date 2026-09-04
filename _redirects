@@ -2,7 +2,7 @@
 /login                        /login/index.html                   200
 /login.html                   /login/index.html                   200
 /dashboard                    /merchant-dashboard     200
-/merchant-dashboard           /merchant-dashboard   200
+/merchant-dashboard/           /merchant-dashboard   200
 /merchant-dashboard.html      /merchant-dashboard      200
 /builder                      /store-builder           200
 /studio                       /store-builder           200
