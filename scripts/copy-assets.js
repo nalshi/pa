@@ -114,6 +114,10 @@ fs.writeFileSync(path.resolve(distDir, '_headers'), headersContent, 'utf8');
 fs.chmodSync(path.resolve(distDir, '_headers'), SAFE_FILE_MODE);
 
 const redirectsContent = `# Cloudflare Pages — Clean URL routing
+# Compatibility rewrites for cached/legacy dashboard pages
+/merchant-dashboard/js/*      /js/:splat                         200
+/merchant-dashboard/css/*     /css/:splat                        200
+/merchant-dashboard/manifest.json /manifest.json                  200
 /login                        /login/index.html                   200
 /login.html                   /login/index.html                   200
 /dashboard                    /merchant-dashboard/index.html      200
