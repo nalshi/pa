@@ -628,6 +628,8 @@
                     finish(true);
                 } else if (message.event === 'product_updated' && message.product) {
                     window.AppStore.updateProduct(message.product);
+                } else if (message.event === 'product_removed' && message.product_id) {
+                    window.AppStore.removeProduct(message.product_id);
                 } else if (message.event === 'order_updated' && message.order) {
                     const wasKnown = window.AppStore.getOrders('active').some(order => String(order.id) === String(message.order.id));
                     const current = window.AppStore.getOrders('active');
@@ -658,6 +660,16 @@
                     localStorage.setItem('merchant_settings_cache', JSON.stringify(message.settings));
                     localStorage.setItem('merchant_settings_cache_ts', Date.now().toString());
                     if (typeof window.applySettingsToUI === 'function') window.applySettingsToUI(message.settings);
+                } else if (message.event === 'merchant_message' && message.message) {
+                    const incoming = message.message;
+                    if (typeof window.addNotification === 'function') {
+                        window.addNotification(
+                            'fa-whatsapp',
+                            `رسالة واتساب من ${incoming.customer_name || 'عميل'}: ${incoming.text || ''}`,
+                            'info'
+                        );
+                    }
+                    window.dispatchEvent(new CustomEvent('merchant-message', { detail: incoming }));
                 }
             });
             socket.addEventListener('error', () => finish(false));
@@ -670,12 +682,10 @@
                 if (!settled) finish(false);
                 if (!window.dashboardSocketStop && navigator.onLine) {
                     const attempt = (window.dashboardSocketReconnectAttempt || 0) + 1;
-                    if (attempt <= 6) {
-                        window.dashboardSocketReconnectAttempt = attempt;
-                        window.dashboardSocketReconnectTimer = setTimeout(() => {
-                            window.connectDashboardSocket();
-                        }, Math.min(30000, 1000 * Math.pow(2, attempt - 1)));
-                    }
+                    window.dashboardSocketReconnectAttempt = attempt;
+                    window.dashboardSocketReconnectTimer = setTimeout(() => {
+                        window.connectDashboardSocket();
+                    }, Math.min(30000, 1000 * Math.pow(2, Math.min(attempt - 1, 5))));
                 }
             });
         });
@@ -684,6 +694,11 @@
     window.addEventListener('online', () => {
         window.dashboardSocketReconnectAttempt = 0;
         window.connectDashboardSocket();
+    });
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible' && !window.dashboardSocketStop) {
+            window.connectDashboardSocket();
+        }
     });
 
     // ===== إخفاء شاشة التحميل =====
