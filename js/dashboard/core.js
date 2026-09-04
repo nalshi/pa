@@ -54,6 +54,8 @@
     window.dashboardReadState = { products: false, activeOrders: false, archivedOrders: false, settings: false, stats: false };
     window.dashboardSocketStop = false;
     window.dashboardSocketPingTimer = null;
+    window.dashboardSocketStatus = 'idle';
+    window.dashboardSocketLastError = '';
     window.dashboardSectionsInitialized = {};
     window.dashboardReadPromises = {};
 
@@ -554,15 +556,38 @@
         }
     };
 
+    window.setDashboardSocketStatus = function (status, detail = '') {
+        window.dashboardSocketStatus = status;
+        window.dashboardSocketLastError = detail;
+        const el = document.getElementById('dashboard-connection-status');
+        if (!el) return;
+        const dot = el.querySelector('span:first-child');
+        const text = el.querySelector('span:last-child');
+        const states = {
+            connected: ['#10b981', 'متصل لحظياً'],
+            connecting: ['#f59e0b', 'جاري الاتصال...'],
+            disconnected: ['#ef4444', detail ? `غير متصل: ${detail}` : 'غير متصل'],
+            offline: ['#ef4444', 'لا يوجد إنترنت'],
+        };
+        const current = states[status] || states.disconnected;
+        if (dot) dot.style.background = current[0];
+        if (text) text.textContent = current[1];
+        el.title = detail || current[1];
+    };
+
     // اتصال واحد آمن لكل جلسة؛ القراءة اللاحقة للأقسام تتم من اللقطة المحلية.
     window.connectDashboardSocket = function () {
         const token = localStorage.getItem('merchant_token') || sessionStorage.getItem('merchant_token') || window.merchantToken;
         const merchantId = window.merchantUserId;
-        if (!token || !merchantId || !window.WebSocket) return Promise.resolve(false);
+        if (!token || !merchantId || !window.WebSocket) {
+            window.setDashboardSocketStatus('disconnected', 'بيانات الدخول أو WebSocket غير متوفر');
+            return Promise.resolve(false);
+        }
         if (window.dashboardSocket && [WebSocket.OPEN, WebSocket.CONNECTING].includes(window.dashboardSocket.readyState)) {
             return window.dashboardSocketReady ? Promise.resolve(true) : window.dashboardDataReady;
         }
 
+        window.setDashboardSocketStatus('connecting');
         window.dashboardDataReady = new Promise((resolve) => {
             const scheme = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
             const socketUrl = `${scheme}//${window.location.host}/api/worker/ws?merchant_id=${encodeURIComponent(merchantId)}&token=${encodeURIComponent(token)}`;
@@ -570,6 +595,7 @@
             let settled = false;
             const handshakeTimer = setTimeout(() => {
                 if (!settled) {
+                    window.setDashboardSocketStatus('disconnected', 'انتهت مهلة الاتصال');
                     finish(false);
                     if (socket.readyState === WebSocket.CONNECTING) socket.close();
                 }
@@ -584,6 +610,7 @@
 
             window.dashboardSocket = socket;
             socket.addEventListener('open', () => {
+                window.setDashboardSocketStatus('connecting', 'تم فتح القناة، بانتظار بيانات D1');
                 window.dashboardSocketReady = true;
                 window.dashboardSocketReconnectAttempt = 0;
                 socket.send(JSON.stringify({ type: 'ping' }));
@@ -596,6 +623,7 @@
                 let message;
                 try { message = JSON.parse(event.data); } catch (e) { return; }
                 if (message.event === 'initial_load') {
+                    window.setDashboardSocketStatus('connected');
                     window.dashboardSnapshotLoaded = true;
                     if (Array.isArray(message.products)) window.AppStore.setProducts(message.products);
                     if (Array.isArray(message.products)) window.dashboardReadState.products = true;
@@ -626,6 +654,9 @@
                         if (typeof window.renderWeeklyActivityBar === 'function') window.renderWeeklyActivityBar(stats.weekly);
                     }
                     finish(true);
+                } else if (message.event === 'error') {
+                    window.setDashboardSocketStatus('disconnected', message.message || 'فشل تحميل بيانات اللوحة');
+                    finish(false);
                 } else if (message.event === 'product_updated' && message.product) {
                     window.AppStore.updateProduct(message.product);
                 } else if (message.event === 'product_removed' && message.product_id) {
@@ -672,9 +703,14 @@
                     window.dispatchEvent(new CustomEvent('merchant-message', { detail: incoming }));
                 }
             });
-            socket.addEventListener('error', () => finish(false));
-            socket.addEventListener('close', () => {
+            socket.addEventListener('error', () => {
+                window.setDashboardSocketStatus('disconnected', 'رفض الخادم اتصال WebSocket');
+                finish(false);
+            });
+            socket.addEventListener('close', (event) => {
                 window.dashboardSocketReady = false;
+                const reason = event.reason || (event.code === 1000 ? 'تم إغلاق الاتصال' : `رمز ${event.code}`);
+                window.setDashboardSocketStatus(navigator.onLine ? 'disconnected' : 'offline', reason);
                 if (window.dashboardSocketPingTimer) {
                     clearInterval(window.dashboardSocketPingTimer);
                     window.dashboardSocketPingTimer = null;
@@ -694,6 +730,9 @@
     window.addEventListener('online', () => {
         window.dashboardSocketReconnectAttempt = 0;
         window.connectDashboardSocket();
+    });
+    window.addEventListener('offline', () => {
+        window.setDashboardSocketStatus('offline');
     });
     document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'visible' && !window.dashboardSocketStop) {
