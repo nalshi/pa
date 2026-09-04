@@ -122,7 +122,7 @@
 
             const promise = new Promise((resolve, reject) => {
                 const script = document.createElement('script');
-                script.src = `js/dashboard/${moduleName}.js`;
+                script.src = `/js/dashboard/${moduleName}.js`;
                 script.async = true;
                 script.onload = () => {
                     this.loaded.add(moduleName);
