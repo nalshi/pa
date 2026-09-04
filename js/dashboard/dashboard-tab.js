@@ -400,6 +400,8 @@
     // ===== جلب الإحصائيات وتحديث الواجهة =====
     window.loadLocalDashboardStats = async function () {
         window.ensureDashboardHTML();
+        window.dashboardReadState = window.dashboardReadState || {};
+        window.dashboardReadPromises = window.dashboardReadPromises || {};
 
         const cachedStats = localStorage.getItem('merchant_dashboard_stats_v2');
         if (cachedStats) {

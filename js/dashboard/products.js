@@ -309,15 +309,16 @@
     // ===== جلب المنتجات من الخادم =====
     window.loadAllFromJson = async function (page = 1, term = '', isAppending = false, isSilent = false, forceDb = false) {
         window.ensureProductsHTML();
+        window.dashboardReadState = window.dashboardReadState || {};
+        window.dashboardReadPromises = window.dashboardReadPromises || {};
         if (window.isFetchingProducts) return;
         window.isFetchingProducts = true;
 
         try {
-            if (window.dashboardSocketReady || window.dashboardReadState.products) {
+            if (window.dashboardSocketReady || (window.dashboardReadState.products && window.AppStore.getProducts().length > 0)) {
                 window.renderProductsInitial();
                 return;
             }
-            window.dashboardReadState.products = true;
             const apiRes = await window.apiReq('list_products', { page: 1, limit: 1000, term: '' }, 'POST', false, true);
 
             let rawList = null;
@@ -375,6 +376,7 @@
                 // setProducts يُطلق products_init subscriber الذي يتولى استدعاء renderProductsInitial تلقائياً
                 // لا تستدعي renderProductsInitial هنا لتجنب Race Condition
                 window.AppStore.setProducts(fetchedProducts);
+                window.dashboardReadState.products = true;
             } else {
                 throw new Error(apiRes?.message || 'فشل استرجاع البيانات من قاعدة البيانات');
             }

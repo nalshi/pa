@@ -167,6 +167,7 @@
 
     // ===== جلب إعدادات المتجر =====
     window.loadStoreData = async function () {
+        window.dashboardReadState = window.dashboardReadState || {};
         const token = localStorage.getItem('merchant_token') || sessionStorage.getItem('merchant_token');
         if (!token) throw new Error('بيانات الدخول مفقودة.');
 

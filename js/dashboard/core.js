@@ -725,16 +725,16 @@
                         window.AppStore.setProducts(parsedProducts);
                         shownFromCache = true;
                     }
-                    try {
-                        if (cachedActiveOrders) window.AppStore.setOrders('active', JSON.parse(cachedActiveOrders));
-                        if (cachedArchivedOrders) window.AppStore.setOrders('archived', JSON.parse(cachedArchivedOrders));
-                    } catch (e) {
-                        localStorage.removeItem('merchant_active_orders_cache');
-                        localStorage.removeItem('merchant_archived_orders_cache');
-                    }
                 } catch (e) {
                     localStorage.removeItem('merchant_products_cache');
                 }
+            }
+            try {
+                if (cachedActiveOrders) window.AppStore.setOrders('active', JSON.parse(cachedActiveOrders));
+                if (cachedArchivedOrders) window.AppStore.setOrders('archived', JSON.parse(cachedArchivedOrders));
+            } catch (e) {
+                localStorage.removeItem('merchant_active_orders_cache');
+                localStorage.removeItem('merchant_archived_orders_cache');
             }
 
             window.hideInitialLoadingScreen();

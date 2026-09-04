@@ -48,6 +48,8 @@
 
     // ===== جلب الطلبات من الخادم مع الحفظ بالذاكرة =====
     window.loadOrders = async function (filterType, btnElement, silent = false) {
+        window.dashboardReadState = window.dashboardReadState || {};
+        window.dashboardReadPromises = window.dashboardReadPromises || {};
         window.ensureOrdersHTML();
         if (btnElement) {
             document.querySelectorAll('#orders .segment-btn').forEach(b => b.classList.remove('active'));
@@ -73,17 +75,18 @@
         }
 
         try {
-            if (window.dashboardSocketReady || window.dashboardReadState[filterType + 'Orders']) return;
+            const readKey = filterType + 'Orders';
+            if (window.dashboardSocketReady || (window.dashboardReadState[readKey] && window.AppStore.getOrders(filterType).length > 0)) return;
             if (window.dashboardReadPromises[filterType + 'Orders']) return window.dashboardReadPromises[filterType + 'Orders'];
-            window.dashboardReadState[filterType + 'Orders'] = true;
-            window.dashboardReadPromises[filterType + 'Orders'] = window.apiReq('get_orders', { filter: filterType }, 'POST', false, true);
-            const res = await window.dashboardReadPromises[filterType + 'Orders'];
-            delete window.dashboardReadPromises[filterType + 'Orders'];
+            window.dashboardReadPromises[readKey] = window.apiReq('get_orders', { filter: filterType }, 'POST', false, true);
+            const res = await window.dashboardReadPromises[readKey];
+            delete window.dashboardReadPromises[readKey];
             let newOrders = [];
 
             if (res && res.status === 'success' && Array.isArray(res.data)) {
                 newOrders = res.data;
             }
+            window.dashboardReadState[readKey] = true;
 
             const prevOrders = window.AppStore.getOrders(filterType);
 
