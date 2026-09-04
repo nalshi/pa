@@ -73,6 +73,7 @@
         }
 
         try {
+            if (window.dashboardSocketReady) return;
             const res = await window.apiReq('get_orders', { filter: filterType }, 'POST', false, true);
             let newOrders = [];
 

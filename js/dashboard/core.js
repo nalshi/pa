@@ -47,6 +47,9 @@
     window.appDataReady = false;
     window.introAnimDone = false;
     window.initialOrdersLoaded = false;
+    window.dashboardSocket = null;
+    window.dashboardSocketReady = false;
+    window.dashboardDataReady = Promise.resolve();
 
     // ===== التحقق من صلاحية الجلسة والتوكن =====
     window.checkTokenValidity = function () {
@@ -250,7 +253,11 @@
             persistTimer = setTimeout(() => {
                 persistTimer = null;
                 const run = () => {
-                    try { localStorage.setItem('merchant_products_cache', JSON.stringify(state.products)); }
+                    try {
+                        localStorage.setItem('merchant_products_cache', JSON.stringify(state.products));
+                        localStorage.setItem('merchant_active_orders_cache', JSON.stringify(state.activeOrders));
+                        localStorage.setItem('merchant_archived_orders_cache', JSON.stringify(state.archivedOrders));
+                    }
                     catch (e) { }
                 };
                 if (window.requestIdleCallback) window.requestIdleCallback(run, { timeout: 1000 });
@@ -287,6 +294,7 @@
             setOrders: (type, orders) => {
                 if (type === 'active') state.activeOrders = orders;
                 else state.archivedOrders = orders;
+                schedulePersist();
                 notify('orders_updated', { type, orders });
                 if (type === 'active' && typeof window.evaluatePendingOrdersState === 'function') {
                     window.evaluatePendingOrdersState();
@@ -540,6 +548,95 @@
         }
     };
 
+    // اتصال واحد آمن لكل جلسة؛ القراءة اللاحقة للأقسام تتم من اللقطة المحلية.
+    window.connectDashboardSocket = function () {
+        const token = localStorage.getItem('merchant_token') || sessionStorage.getItem('merchant_token') || window.merchantToken;
+        const merchantId = window.merchantUserId;
+        if (!token || !merchantId || !window.WebSocket) return Promise.resolve(false);
+        if (window.dashboardSocket && [WebSocket.OPEN, WebSocket.CONNECTING].includes(window.dashboardSocket.readyState)) {
+            return window.dashboardSocketReady ? Promise.resolve(true) : window.dashboardDataReady;
+        }
+
+        window.dashboardDataReady = new Promise((resolve) => {
+            const scheme = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const socketUrl = `${scheme}//${window.location.host}/api/worker/ws?merchant_id=${encodeURIComponent(merchantId)}&token=${encodeURIComponent(token)}`;
+            const socket = new WebSocket(socketUrl);
+            let settled = false;
+            const finish = (value) => {
+                if (!settled) {
+                    settled = true;
+                    resolve(value);
+                }
+            };
+
+            window.dashboardSocket = socket;
+            socket.addEventListener('open', () => {
+                window.dashboardSocketReady = true;
+                window.dashboardSocketReconnectAttempt = 0;
+                socket.send(JSON.stringify({ type: 'ping' }));
+            });
+            socket.addEventListener('message', (event) => {
+                let message;
+                try { message = JSON.parse(event.data); } catch (e) { return; }
+                if (message.event === 'initial_load') {
+                    if (Array.isArray(message.products)) window.AppStore.setProducts(message.products);
+                    if (Array.isArray(message.orders)) window.AppStore.setOrders('active', message.orders);
+                    if (Array.isArray(message.archivedOrders)) window.AppStore.setOrders('archived', message.archivedOrders);
+                    if (Array.isArray(message.categories)) window.flatCategoriesList = message.categories;
+                    if (message.settings && typeof message.settings === 'object') {
+                        window.currentMerchantData = message.settings;
+                        localStorage.setItem('merchant_settings_cache', JSON.stringify(message.settings));
+                        localStorage.setItem('merchant_settings_cache_ts', Date.now().toString());
+                        if (typeof window.applySettingsToUI === 'function') window.applySettingsToUI(message.settings);
+                    }
+                    if (Array.isArray(message.salesLog) && typeof window.computeStatsByCurrency === 'function') {
+                        const stats = window.computeStatsByCurrency(message.salesLog);
+                        stats.weekly = typeof window.computeWeeklyActivity === 'function'
+                            ? window.computeWeeklyActivity(message.salesLog) : null;
+                        localStorage.setItem('merchant_dashboard_stats_v2', JSON.stringify(stats));
+                        if (typeof window.renderCurrencyStats === 'function') window.renderCurrencyStats(stats.byCurrency);
+                        if (typeof window.renderTopSellersList === 'function') window.renderTopSellersList({ labels: stats.topProducts, data: stats.topCounts });
+                        if (typeof window.renderWeeklyActivityBar === 'function') window.renderWeeklyActivityBar(stats.weekly);
+                    }
+                    finish(true);
+                } else if (message.event === 'product_updated' && message.product) {
+                    window.AppStore.updateProduct(message.product);
+                } else if (message.event === 'order_updated' && message.order) {
+                    const current = window.AppStore.getOrders('active');
+                    const next = current.filter(order => String(order.id) !== String(message.order.id));
+                    if (message.order.status !== 'completed' && message.order.status !== 'cancelled') {
+                        next.push(message.order);
+                    }
+                    window.AppStore.setOrders('active', next);
+                } else if (message.event === 'settings_updated' && message.settings) {
+                    window.currentMerchantData = message.settings;
+                    localStorage.setItem('merchant_settings_cache', JSON.stringify(message.settings));
+                    localStorage.setItem('merchant_settings_cache_ts', Date.now().toString());
+                    if (typeof window.applySettingsToUI === 'function') window.applySettingsToUI(message.settings);
+                }
+            });
+            socket.addEventListener('error', () => finish(false));
+            socket.addEventListener('close', () => {
+                window.dashboardSocketReady = false;
+                if (!settled) finish(false);
+                if (!window.dashboardSocketStop && navigator.onLine) {
+                    const attempt = (window.dashboardSocketReconnectAttempt || 0) + 1;
+                    if (attempt <= 6) {
+                        window.dashboardSocketReconnectAttempt = attempt;
+                        window.dashboardSocketReconnectTimer = setTimeout(() => {
+                            window.connectDashboardSocket();
+                        }, Math.min(30000, 1000 * Math.pow(2, attempt - 1)));
+                    }
+                }
+            });
+        });
+        return window.dashboardDataReady;
+    };
+    window.addEventListener('online', () => {
+        window.dashboardSocketReconnectAttempt = 0;
+        window.connectDashboardSocket();
+    });
+
     // ===== إخفاء شاشة التحميل =====
     window.hideInitialLoadingScreen = function () {
         window.appDataReady = true;
@@ -554,6 +651,8 @@
 
             const cachedProducts = localStorage.getItem('merchant_products_cache');
             const cachedSettings = localStorage.getItem('merchant_settings_cache');
+            const cachedActiveOrders = localStorage.getItem('merchant_active_orders_cache');
+            const cachedArchivedOrders = localStorage.getItem('merchant_archived_orders_cache');
 
             if (window.ilsUpdate) window.ilsUpdate(40, 'جاري تحميل بياناتك المحفوظة...');
             if (cachedSettings) {
@@ -579,12 +678,21 @@
                         window.AppStore.setProducts(parsedProducts);
                         shownFromCache = true;
                     }
+                    try {
+                        if (cachedActiveOrders) window.AppStore.setOrders('active', JSON.parse(cachedActiveOrders));
+                        if (cachedArchivedOrders) window.AppStore.setOrders('archived', JSON.parse(cachedArchivedOrders));
+                    } catch (e) {
+                        localStorage.removeItem('merchant_active_orders_cache');
+                        localStorage.removeItem('merchant_archived_orders_cache');
+                    }
                 } catch (e) {
                     localStorage.removeItem('merchant_products_cache');
                 }
             }
 
             window.hideInitialLoadingScreen();
+
+            await window.connectDashboardSocket();
 
             // تحميل وعرض تبويب الرئيسية فوراً وبسرعة فائقة
             await window.ModuleLoader.load('dashboard-tab');

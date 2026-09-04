@@ -137,11 +137,14 @@
         const doLogout = async () => {
             const token = localStorage.getItem('merchant_token') || sessionStorage.getItem('merchant_token');
             ['merchant_token', 'merchant_products_cache', 'merchant_settings_cache',
+                'merchant_active_orders_cache', 'merchant_archived_orders_cache',
                 'merchant_settings_cache_ts', 'merchant_notifications', 'has_unread_notifs',
                 'merchant_dashboard_stats', 'merchant_dashboard_stats_v2', 'mThm'].forEach(key => {
                     try { localStorage.removeItem(key); } catch (e) { }
                 });
             sessionStorage.clear();
+            window.dashboardSocketStop = true;
+            if (window.dashboardSocket) window.dashboardSocket.close(1000, 'logout');
             await fetch(window.API_URL, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': window.CSRF_TOKEN },
@@ -168,6 +171,10 @@
         if (!token) throw new Error('بيانات الدخول مفقودة.');
 
         try {
+            if (window.dashboardSocketReady && window.currentMerchantData && Object.keys(window.currentMerchantData).length > 0) {
+                window.applySettingsToUI(window.currentMerchantData);
+                return;
+            }
             const cachedSettings = localStorage.getItem('merchant_settings_cache');
             const cacheTimestamp = parseInt(localStorage.getItem('merchant_settings_cache_ts') || '0');
             const CACHE_MAX_AGE_MS = 10 * 60 * 1000;

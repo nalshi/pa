@@ -411,6 +411,8 @@
             } catch (e) { }
         }
 
+        if (window.dashboardSocketReady) return;
+
         let statsResult = null;
         let weeklyResult = null;
 

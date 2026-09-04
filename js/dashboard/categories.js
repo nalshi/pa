@@ -69,6 +69,13 @@
 
     // ===== جلب شجرة الفئات من الخادم =====
     window.fetchCategoryTree = async function () {
+        if (window.dashboardSocketReady && Array.isArray(window.flatCategoriesList) && window.flatCategoriesList.length > 0) {
+            window.initDynamicCategories();
+            if (typeof window.refreshProductCategoryNames === 'function') {
+                window.refreshProductCategoryNames();
+            }
+            return;
+        }
         try {
             const res = await window.apiReq('get_categories_tree', {}, 'POST', false, true);
             if (res && res.status === 'success' && Array.isArray(res.data)) {
