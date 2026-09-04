@@ -171,10 +171,11 @@
         if (!token) throw new Error('بيانات الدخول مفقودة.');
 
         try {
-            if (window.dashboardSocketReady && window.currentMerchantData && Object.keys(window.currentMerchantData).length > 0) {
+            if (window.dashboardSocketReady || window.dashboardReadState.settings) {
                 window.applySettingsToUI(window.currentMerchantData);
                 return;
             }
+            window.dashboardReadState.settings = true;
             const cachedSettings = localStorage.getItem('merchant_settings_cache');
             const cacheTimestamp = parseInt(localStorage.getItem('merchant_settings_cache_ts') || '0');
             const CACHE_MAX_AGE_MS = 10 * 60 * 1000;

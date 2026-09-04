@@ -313,6 +313,11 @@
         window.isFetchingProducts = true;
 
         try {
+            if (window.dashboardSocketReady || window.dashboardReadState.products) {
+                window.renderProductsInitial();
+                return;
+            }
+            window.dashboardReadState.products = true;
             const apiRes = await window.apiReq('list_products', { page: 1, limit: 1000, term: '' }, 'POST', false, true);
 
             let rawList = null;

@@ -50,6 +50,10 @@
     window.dashboardSocket = null;
     window.dashboardSocketReady = false;
     window.dashboardDataReady = Promise.resolve();
+    window.dashboardSnapshotLoaded = false;
+    window.dashboardReadState = { products: false, activeOrders: false, archivedOrders: false, settings: false, stats: false };
+    window.dashboardSocketStop = false;
+    window.dashboardSocketPingTimer = null;
 
     // ===== التحقق من صلاحية الجلسة والتوكن =====
     window.checkTokenValidity = function () {
@@ -562,9 +566,16 @@
             const socketUrl = `${scheme}//${window.location.host}/api/worker/ws?merchant_id=${encodeURIComponent(merchantId)}&token=${encodeURIComponent(token)}`;
             const socket = new WebSocket(socketUrl);
             let settled = false;
+            const handshakeTimer = setTimeout(() => {
+                if (!settled) {
+                    finish(false);
+                    if (socket.readyState === WebSocket.CONNECTING) socket.close();
+                }
+            }, 8000);
             const finish = (value) => {
                 if (!settled) {
                     settled = true;
+                    clearTimeout(handshakeTimer);
                     resolve(value);
                 }
             };
@@ -574,22 +585,36 @@
                 window.dashboardSocketReady = true;
                 window.dashboardSocketReconnectAttempt = 0;
                 socket.send(JSON.stringify({ type: 'ping' }));
+                if (window.dashboardSocketPingTimer) clearInterval(window.dashboardSocketPingTimer);
+                window.dashboardSocketPingTimer = setInterval(() => {
+                    if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ type: 'ping' }));
+                }, 25000);
             });
             socket.addEventListener('message', (event) => {
                 let message;
                 try { message = JSON.parse(event.data); } catch (e) { return; }
                 if (message.event === 'initial_load') {
+                    window.dashboardSnapshotLoaded = true;
                     if (Array.isArray(message.products)) window.AppStore.setProducts(message.products);
-                    if (Array.isArray(message.orders)) window.AppStore.setOrders('active', message.orders);
-                    if (Array.isArray(message.archivedOrders)) window.AppStore.setOrders('archived', message.archivedOrders);
+                    if (Array.isArray(message.products)) window.dashboardReadState.products = true;
+                    if (Array.isArray(message.orders)) {
+                        window.AppStore.setOrders('active', message.orders);
+                        window.dashboardReadState.activeOrders = true;
+                    }
+                    if (Array.isArray(message.archivedOrders)) {
+                        window.AppStore.setOrders('archived', message.archivedOrders);
+                        window.dashboardReadState.archivedOrders = true;
+                    }
                     if (Array.isArray(message.categories)) window.flatCategoriesList = message.categories;
                     if (message.settings && typeof message.settings === 'object') {
+                        window.dashboardReadState.settings = true;
                         window.currentMerchantData = message.settings;
                         localStorage.setItem('merchant_settings_cache', JSON.stringify(message.settings));
                         localStorage.setItem('merchant_settings_cache_ts', Date.now().toString());
                         if (typeof window.applySettingsToUI === 'function') window.applySettingsToUI(message.settings);
                     }
                     if (Array.isArray(message.salesLog) && typeof window.computeStatsByCurrency === 'function') {
+                        window.dashboardReadState.stats = true;
                         const stats = window.computeStatsByCurrency(message.salesLog);
                         stats.weekly = typeof window.computeWeeklyActivity === 'function'
                             ? window.computeWeeklyActivity(message.salesLog) : null;
@@ -602,12 +627,28 @@
                 } else if (message.event === 'product_updated' && message.product) {
                     window.AppStore.updateProduct(message.product);
                 } else if (message.event === 'order_updated' && message.order) {
+                    const wasKnown = window.AppStore.getOrders('active').some(order => String(order.id) === String(message.order.id));
                     const current = window.AppStore.getOrders('active');
                     const next = current.filter(order => String(order.id) !== String(message.order.id));
                     if (message.order.status !== 'completed' && message.order.status !== 'cancelled') {
                         next.push(message.order);
                     }
                     window.AppStore.setOrders('active', next);
+                    if (!wasKnown && message.order.status === 'pending_merchant_approval') {
+                        if (typeof window.addNotification === 'function') {
+                            window.addNotification('fa-bell', 'وصل طلب جديد من ' + (message.order.customer_name || 'عميل'), 'warning');
+                        }
+                        const alert = document.getElementById('new-order-alert');
+                        if (alert) alert.classList.add('show');
+                        if (window.orderAudio && window.currentMerchantData?.settings?.push_notifications !== false) {
+                            window.orderAudio.loop = true;
+                            window.orderAudio.currentTime = 0;
+                            window.orderAudio.play().catch(() => {});
+                        }
+                    }
+                    if (document.getElementById('orders')?.classList.contains('active') && typeof window.renderOrdersUI === 'function') {
+                        window.renderOrdersUI(next, 'active');
+                    }
                 } else if (message.event === 'settings_updated' && message.settings) {
                     window.currentMerchantData = message.settings;
                     localStorage.setItem('merchant_settings_cache', JSON.stringify(message.settings));
@@ -618,6 +659,10 @@
             socket.addEventListener('error', () => finish(false));
             socket.addEventListener('close', () => {
                 window.dashboardSocketReady = false;
+                if (window.dashboardSocketPingTimer) {
+                    clearInterval(window.dashboardSocketPingTimer);
+                    window.dashboardSocketPingTimer = null;
+                }
                 if (!settled) finish(false);
                 if (!window.dashboardSocketStop && navigator.onLine) {
                     const attempt = (window.dashboardSocketReconnectAttempt || 0) + 1;
