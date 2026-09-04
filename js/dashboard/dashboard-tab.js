@@ -428,7 +428,7 @@
             }
         } catch (e) { }
 
-        if (!statsResult) {
+        if (!statsResult && !window.dashboardSnapshotLoaded && !window.dashboardReadState.archivedOrders) {
             try {
                 const ordersRes = await window.apiReq('get_orders', { filter: 'archived' }, 'POST', false, true);
                 if (ordersRes.status === 'success' && Array.isArray(ordersRes.data)) {
@@ -439,6 +439,16 @@
                     }
                 }
             } catch (e) { }
+        }
+
+        // استخدم الأرشيف الموجود في اللقطة/الكاش قبل اللجوء لأي طلب شبكة.
+        if (!statsResult) {
+            const cachedArchived = window.AppStore.getOrders('archived') || [];
+            if (cachedArchived.length > 0) {
+                const fallback = window.computeStatsFromArchivedOrders(cachedArchived);
+                statsResult = fallback;
+                weeklyResult = window.computeWeeklyActivity(cachedArchived);
+            }
         }
 
         if (statsResult) {

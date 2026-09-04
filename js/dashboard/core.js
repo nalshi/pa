@@ -647,8 +647,10 @@
                             window.orderAudio.currentTime = 0;
                             window.orderAudio.play().catch(() => {});
                         }
+                        window.initialOrdersLoaded = true;
                     }
-                    if (document.getElementById('orders')?.classList.contains('active') && typeof window.renderOrdersUI === 'function') {
+                    // حدّث القائمة فورًا إن كانت واجهتها محمّلة، دون انتظار فتح القسم.
+                    if (typeof window.renderOrdersUI === 'function' && document.getElementById('orders-container')) {
                         window.renderOrdersUI(next, 'active');
                     }
                 } else if (message.event === 'settings_updated' && message.settings) {

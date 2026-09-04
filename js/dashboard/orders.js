@@ -65,18 +65,23 @@
         const container = document.getElementById('orders-container');
         const ordersSection = document.getElementById('orders');
         const isOrdersTabActive = ordersSection && ordersSection.classList.contains('active');
+        const hasRealtimeData = Boolean(window.dashboardSnapshotLoaded || window.dashboardReadState[filterType + 'Orders']);
 
         // عرض كاش الذاكرة فوراً (إن وجد) لمنع الوميض
         const cached = window.AppStore ? window.AppStore.getOrders(filterType) : [];
         if (cached && cached.length > 0 && isOrdersTabActive && container) {
             window.renderOrdersUI(cached, filterType);
-        } else if (isOrdersTabActive && container) {
+        } else if (!hasRealtimeData && isOrdersTabActive && container) {
             container.innerHTML = `<div style="text-align: center; padding: 40px;"><i class="fas fa-circle-notch fa-spin" style="font-size: 2rem; color: var(--primary);"></i><div style="margin-top:10px; color:var(--text-muted); font-size:0.85rem; font-weight:700;">${filterType === 'archived' ? 'جاري تحميل السجل...' : 'جاري التحميل...'}</div></div>`;
+        } else if (hasRealtimeData && isOrdersTabActive && container) {
+            window.renderOrdersUI(cached, filterType);
         }
 
         try {
             const readKey = filterType + 'Orders';
-            if (window.dashboardSocketReady || (window.dashboardReadState[readKey] && window.AppStore.getOrders(filterType).length > 0)) return;
+            // اللقطة اللحظية تعتبر مصدر البيانات حتى لو كانت القائمة فارغة؛
+            // لا نعيد طلب get_orders عند كل دخول لقسم الطلبات.
+            if (window.dashboardSocketReady || window.dashboardReadState[readKey]) return;
             if (window.dashboardReadPromises[filterType + 'Orders']) return window.dashboardReadPromises[filterType + 'Orders'];
             window.dashboardReadPromises[readKey] = window.apiReq('get_orders', { filter: filterType }, 'POST', false, true);
             const res = await window.dashboardReadPromises[readKey];
