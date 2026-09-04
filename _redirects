@@ -1,9 +1,9 @@
 # Cloudflare Pages — Clean URL routing
 /login                        /login/index.html                   200
 /login.html                   /login/index.html                   200
-/dashboard                    /merchant-dashboard/index.html      200
-/merchant-dashboard           /merchant-dashboard/index.html      200
-/merchant-dashboard.html      /merchant-dashboard/index.html      200
-/builder                      /store-builder/index.html           200
-/studio                       /store-builder/index.html           200
-/store-builder.html           /store-builder/index.html           200
+/dashboard                    /merchant-dashboard     200
+/merchant-dashboard           /merchant-dashboard   200
+/merchant-dashboard.html      /merchant-dashboard      200
+/builder                      /store-builder           200
+/studio                       /store-builder           200
+/store-builder.html           /store-builder           200
