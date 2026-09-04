@@ -412,7 +412,9 @@
         }
 
         if (window.dashboardSocketReady || window.dashboardReadState.stats) return;
+        if (window.dashboardReadPromises.stats) return window.dashboardReadPromises.stats;
 
+        window.dashboardReadPromises.stats = (async () => {
         let statsResult = null;
         let weeklyResult = null;
 
@@ -449,6 +451,10 @@
             window.renderTopSellersList({ labels: [], data: [] });
             window.renderWeeklyActivityBar(window.computeWeeklyActivity([]));
         }
+        window.dashboardReadState.stats = true;
+        delete window.dashboardReadPromises.stats;
+        })();
+        return window.dashboardReadPromises.stats;
     };
 
 

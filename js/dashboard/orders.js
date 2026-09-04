@@ -74,8 +74,11 @@
 
         try {
             if (window.dashboardSocketReady || window.dashboardReadState[filterType + 'Orders']) return;
+            if (window.dashboardReadPromises[filterType + 'Orders']) return window.dashboardReadPromises[filterType + 'Orders'];
             window.dashboardReadState[filterType + 'Orders'] = true;
-            const res = await window.apiReq('get_orders', { filter: filterType }, 'POST', false, true);
+            window.dashboardReadPromises[filterType + 'Orders'] = window.apiReq('get_orders', { filter: filterType }, 'POST', false, true);
+            const res = await window.dashboardReadPromises[filterType + 'Orders'];
+            delete window.dashboardReadPromises[filterType + 'Orders'];
             let newOrders = [];
 
             if (res && res.status === 'success' && Array.isArray(res.data)) {

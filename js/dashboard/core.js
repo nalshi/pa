@@ -54,6 +54,8 @@
     window.dashboardReadState = { products: false, activeOrders: false, archivedOrders: false, settings: false, stats: false };
     window.dashboardSocketStop = false;
     window.dashboardSocketPingTimer = null;
+    window.dashboardSectionsInitialized = {};
+    window.dashboardReadPromises = {};
 
     // ===== التحقق من صلاحية الجلسة والتوكن =====
     window.checkTokenValidity = function () {

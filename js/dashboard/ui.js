@@ -322,7 +322,10 @@
         if (tab === 'dashboard') {
             await window.ModuleLoader.load('dashboard-tab');
             if (typeof window.ensureDashboardHTML === 'function') window.ensureDashboardHTML();
-            if (typeof window.loadLocalDashboardStats === 'function') window.loadLocalDashboardStats();
+            if (!window.dashboardSectionsInitialized.dashboard && typeof window.loadLocalDashboardStats === 'function') {
+                window.dashboardSectionsInitialized.dashboard = true;
+                await window.loadLocalDashboardStats();
+            }
         } else if (tab === 'management') {
             await Promise.all([
                 window.ModuleLoader.load('products'),
@@ -343,19 +346,14 @@
                 } else if (typeof window.renderProductsGrid === 'function') {
                     window.renderProductsGrid(allProducts.slice(0, 12), false);
                 }
-                // تحديث صامت من الخادم في الخلفية
-                setTimeout(() => {
-                    if (typeof window.loadAllFromJson === 'function') {
-                        window.loadAllFromJson(1, '', false, true);
-                    }
-                }, 800);
             } else {
                 // لا يوجد كاش — أظهر مؤشر تحميل وجلب من الخادم
                 const grid = document.getElementById('p-grid');
                 if (grid) {
                     grid.innerHTML = '<div style="grid-column:1/-1; text-align:center; padding:45px 20px;"><i class="fas fa-circle-notch fa-spin text-primary" style="font-size:2.2rem;"></i><div style="margin-top:12px; color:var(--text-muted); font-size:0.9rem; font-weight:700;">جاري تحميل المنتجات...</div></div>';
                 }
-                if (typeof window.loadAllFromJson === 'function') {
+                if (!window.dashboardSectionsInitialized.management && typeof window.loadAllFromJson === 'function') {
+                    window.dashboardSectionsInitialized.management = true;
                     window.loadAllFromJson(1, '', false, false);
                 }
             }
@@ -382,7 +380,8 @@
                 window.renderOrdersUI(cachedOrders, currentFilter);
             }
 
-            if (typeof window.loadOrders === 'function') {
+            if (!window.dashboardSectionsInitialized.orders && typeof window.loadOrders === 'function') {
+                window.dashboardSectionsInitialized.orders = true;
                 window.loadOrders(currentFilter, activeTabBtn, true);
             }
         } else if (tab === 'settings') {
