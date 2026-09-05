@@ -6,11 +6,12 @@
     <title>متجر نالش | Nalsh</title>
     <meta name="description" content="منصة نالش للتسوق الإلكتروني السريع والموثوق.">
 
-    <link rel="manifest" href="/assets/manifest-CcMG7lbR.json">
+    <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#4f46e5">
-    <link rel="icon" type="image/svg+xml" href="/assets/favicon-CVdDsJFQ.svg">
+    <link rel="icon" type="image/svg+xml" href="favicon.svg">
     <meta name="application-name" content="نالش">
     <meta name="apple-mobile-web-app-title" content="نالش">
+    <base href="/">
 
     <!-- خطوط وأيقونات -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -19,6 +20,8 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer">
 
     <!-- ملفات CSS والثيم الأصلي المتكامل -->
+    <link rel="stylesheet" href="css/main.css">
+    <link rel="stylesheet" href="css/storefront-theme.css">
 
     <!-- تفعيل الوضع الداكن فوراً قبل رندر أي عنصر -->
     <script>
@@ -29,9 +32,7 @@
             }
         })();
     </script>
-  <script type="module" crossorigin src="/assets/main-JrIJadxa.js"></script>
-  <link rel="modulepreload" crossorigin href="/assets/modulepreload-polyfill-B5Qt9EMX.js">
-  <link rel="stylesheet" crossorigin href="/assets/main-N3f5fq5t.css">
+    <script type="module" src="/src/main.ts"></script>
 </head>
 
 <body class="transitioning-body intro-locked">
