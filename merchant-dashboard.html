@@ -87,7 +87,14 @@
 
     window.tryRevealApp = function() {
         const ls = document.getElementById('initial-loading-screen');
-        if (!ls || ls.dataset.hidden === '1' || !window.appDataReady || !window.dashboardConnectionChecked) return;
+        const socketConnected = Boolean(
+            window.WebSocket &&
+            window.dashboardSocketReady &&
+            window.dashboardSnapshotLoaded &&
+            window.dashboardSocket &&
+            window.dashboardSocket.readyState === WebSocket.OPEN
+        );
+        if (!ls || ls.dataset.hidden === '1' || !window.appDataReady || !window.dashboardConnectionChecked || !socketConnected) return;
         ls.dataset.hidden = '1';
         ls.style.transition = 'opacity 0.28s ease';
         ls.style.opacity = '0';
