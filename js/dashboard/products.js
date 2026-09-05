@@ -23,6 +23,9 @@
         const mgtSec = document.getElementById('management');
         if (!mgtSec) return;
 
+        // إزالة هيكل التحميل الذي يضيفه تبديل التبويب قبل إنشاء قائمة المنتجات.
+        mgtSec.querySelectorAll(':scope > .section-skeleton').forEach(skeleton => skeleton.remove());
+
         if (!document.getElementById('product-list-view')) {
             const html = `
             <div id="product-list-view">

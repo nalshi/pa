@@ -14,6 +14,9 @@
         const mgtSec = document.getElementById('management');
         if (!mgtSec) return;
 
+        // لا تترك مربعات التحميل خلف نموذج الإضافة أو التعديل.
+        mgtSec.querySelectorAll(':scope > .section-skeleton').forEach(skeleton => skeleton.remove());
+
         if (!document.getElementById('publish-lock-overlay')) {
             const overlayHtml = `
             <div id="publish-lock-overlay" class="publish-lock-overlay">
