@@ -25,7 +25,9 @@
             const html = `
             <!-- شريط كروت العملات الثلاث المميزة والأنيقة -->
             <div id="currency-stats-grid" class="currency-stats-grid" style="margin-bottom: 20px;">
-                <div class="hscroll-empty" style="padding: 20px;"><i class="fas fa-spinner fa-spin"></i> جاري تحميل الإحصائيات المالية...</div>
+                <div class="sk-card"><div class="sk-shimmer sk-bar" style="width:45%;margin-bottom:12px;"></div><div class="sk-shimmer sk-bar-lg" style="width:110px;"></div></div>
+                <div class="sk-card"><div class="sk-shimmer sk-bar" style="width:45%;margin-bottom:12px;"></div><div class="sk-shimmer sk-bar-lg" style="width:110px;"></div></div>
+                <div class="sk-card"><div class="sk-shimmer sk-bar" style="width:45%;margin-bottom:12px;"></div><div class="sk-shimmer sk-bar-lg" style="width:110px;"></div></div>
             </div>
 
             <!-- أزرار الإجراءات السريعة المباشرة -->
@@ -85,7 +87,7 @@
 
                     <div class="weekly-rhythm-wrap">
                         <div id="weekly-bars-mount" class="weekly-bars-container">
-                            <div class="hscroll-empty" style="padding: 16px;"><i class="fas fa-spinner fa-spin"></i> جاري التحليل...</div>
+                            <div style="display:flex;gap:12px;height:120px;align-items:flex-end;padding:10px;"><div class="sk-shimmer" style="flex:1;height:40%;"></div><div class="sk-shimmer" style="flex:1;height:70%;"></div><div class="sk-shimmer" style="flex:1;height:55%;"></div><div class="sk-shimmer" style="flex:1;height:90%;"></div><div class="sk-shimmer" style="flex:1;height:65%;"></div><div class="sk-shimmer" style="flex:1;height:80%;"></div><div class="sk-shimmer" style="flex:1;height:50%;"></div></div>
                         </div>
                         <div id="weekly-summary-footer" class="weekly-summary-footer">
                             <span>إجمالي نشاط الأسبوع: <strong>0 عملية</strong></span>
@@ -105,7 +107,7 @@
                     </div>
 
                     <div id="top-sellers-mount">
-                        <div class="hscroll-empty" style="padding: 16px;"><i class="fas fa-spinner fa-spin"></i> جاري التحميل...</div>
+                        <div style="display:flex;flex-direction:column;gap:10px;padding:10px;"><div class="sk-shimmer sk-bar-lg"></div><div class="sk-shimmer sk-bar-lg"></div></div>
                     </div>
                 </div>
             </div>`;

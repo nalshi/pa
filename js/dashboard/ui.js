@@ -267,6 +267,110 @@
         selectOverlay.addEventListener('click', window.closeAllCustomSelects);
     }
 
+    // ===== مؤشرات وهياكل الانتقال فائقة الخفة والعصرية =====
+    window._tabProgressTimer = null;
+    window.startTabProgress = function () {
+        const bar = document.getElementById('tab-progress-bar');
+        if (!bar) return;
+        if (window._tabProgressTimer) clearTimeout(window._tabProgressTimer);
+        bar.className = 'tab-progress-bar active';
+        bar.style.width = '35%';
+        window._tabProgressTimer = setTimeout(() => {
+            if (bar.classList.contains('active')) {
+                bar.style.width = '75%';
+            }
+        }, 80);
+    };
+
+    window.finishTabProgress = function () {
+        const bar = document.getElementById('tab-progress-bar');
+        if (!bar) return;
+        if (window._tabProgressTimer) clearTimeout(window._tabProgressTimer);
+        bar.className = 'tab-progress-bar finished';
+        bar.style.width = '100%';
+        setTimeout(() => {
+            bar.className = 'tab-progress-bar';
+            bar.style.width = '0%';
+        }, 220);
+    };
+
+    window.getSectionSkeletonHTML = function (tab) {
+        if (tab === 'management') {
+            return `
+                <div class="section-skeleton">
+                    <div style="display:flex;gap:12px;align-items:center;">
+                        <div class="sk-shimmer sk-bar-lg" style="flex:1;"></div>
+                        <div class="sk-shimmer sk-bar-lg" style="width:120px;"></div>
+                    </div>
+                    <div style="display:flex;gap:8px;margin:2px 0;">
+                        <div class="sk-shimmer" style="width:85px;height:32px;border-radius:20px;"></div>
+                        <div class="sk-shimmer" style="width:95px;height:32px;border-radius:20px;"></div>
+                        <div class="sk-shimmer" style="width:75px;height:32px;border-radius:20px;"></div>
+                    </div>
+                    <div class="sk-grid">
+                        <div class="sk-card"><div class="sk-shimmer sk-product-box"></div><div class="sk-shimmer sk-bar" style="width:75%;margin-bottom:8px;"></div><div class="sk-shimmer sk-bar-sm"></div></div>
+                        <div class="sk-card"><div class="sk-shimmer sk-product-box"></div><div class="sk-shimmer sk-bar" style="width:60%;margin-bottom:8px;"></div><div class="sk-shimmer sk-bar-sm"></div></div>
+                        <div class="sk-card"><div class="sk-shimmer sk-product-box"></div><div class="sk-shimmer sk-bar" style="width:85%;margin-bottom:8px;"></div><div class="sk-shimmer sk-bar-sm"></div></div>
+                        <div class="sk-card"><div class="sk-shimmer sk-product-box"></div><div class="sk-shimmer sk-bar" style="width:70%;margin-bottom:8px;"></div><div class="sk-shimmer sk-bar-sm"></div></div>
+                    </div>
+                </div>
+            `;
+        }
+        if (tab === 'orders') {
+            return `
+                <div class="section-skeleton">
+                    <div class="sk-shimmer sk-bar-lg" style="width:240px;margin:0 auto;border-radius:30px;"></div>
+                    <div style="display:flex;flex-direction:column;gap:14px;margin-top:10px;">
+                        <div class="sk-card">
+                            <div style="display:flex;justify-content:space-between;margin-bottom:12px;">
+                                <div class="sk-shimmer sk-bar" style="width:130px;"></div>
+                                <div class="sk-shimmer" style="width:70px;height:24px;border-radius:12px;"></div>
+                            </div>
+                            <div class="sk-shimmer sk-bar" style="width:55%;margin-bottom:10px;"></div>
+                            <div class="sk-shimmer sk-bar-sm"></div>
+                        </div>
+                        <div class="sk-card">
+                            <div style="display:flex;justify-content:space-between;margin-bottom:12px;">
+                                <div class="sk-shimmer sk-bar" style="width:150px;"></div>
+                                <div class="sk-shimmer" style="width:70px;height:24px;border-radius:12px;"></div>
+                            </div>
+                            <div class="sk-shimmer sk-bar" style="width:65%;margin-bottom:10px;"></div>
+                            <div class="sk-shimmer sk-bar-sm"></div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+        if (tab === 'settings') {
+            return `
+                <div class="section-skeleton">
+                    <div class="sk-card" style="margin-bottom:14px;">
+                        <div class="sk-shimmer sk-bar" style="width:160px;height:20px;margin-bottom:16px;"></div>
+                        <div class="sk-shimmer sk-bar-lg" style="margin-bottom:12px;"></div>
+                        <div class="sk-shimmer sk-bar-lg"></div>
+                    </div>
+                    <div class="sk-card">
+                        <div class="sk-shimmer sk-bar" style="width:140px;height:20px;margin-bottom:16px;"></div>
+                        <div class="sk-shimmer sk-bar-lg" style="margin-bottom:12px;"></div>
+                        <div class="sk-shimmer sk-bar" style="width:75%;"></div>
+                    </div>
+                </div>
+            `;
+        }
+        if (tab === 'dashboard') {
+            return `
+                <div class="section-skeleton">
+                    <div class="sk-grid" style="grid-template-columns:repeat(auto-fit, minmax(200px, 1fr));">
+                        <div class="sk-card"><div class="sk-shimmer sk-bar" style="width:50%;margin-bottom:12px;"></div><div class="sk-shimmer sk-bar-lg" style="width:80px;"></div></div>
+                        <div class="sk-card"><div class="sk-shimmer sk-bar" style="width:50%;margin-bottom:12px;"></div><div class="sk-shimmer sk-bar-lg" style="width:80px;"></div></div>
+                        <div class="sk-card"><div class="sk-shimmer sk-bar" style="width:50%;margin-bottom:12px;"></div><div class="sk-shimmer sk-bar-lg" style="width:80px;"></div></div>
+                    </div>
+                </div>
+            `;
+        }
+        return '';
+    };
+
     // ===== إعداد التنقل والتبويبات =====
     window.setupNav = function () {
         document.querySelectorAll('[data-tab]').forEach(b => {
@@ -285,6 +389,9 @@
             return;
         }
 
+        // بدء شريط التقدم العصري
+        window.startTabProgress();
+
         // فصل مراقبي التمرير للأقسام السابقة لتفريغ المعالج والذاكرة
         if (tab !== 'management' && window.productObserver) {
             try { window.productObserver.disconnect(); } catch (e) { }
@@ -295,17 +402,20 @@
             window.closeDeliveryModal();
         }
 
-        // إغلاق وتحديث أزرار القائمة
+        // إغلاق وتحديث أزرار القائمة فوراً لاستجابة لحظية
         document.querySelectorAll('[data-tab]').forEach(x => {
             if (x.dataset.tab === tab) x.classList.add('active');
             else x.classList.remove('active');
         });
 
-        // إغلاق كل الأقسام السابقة تماماً وإظهار القسم المطلوب فقط
+        // إغلاق كل الأقسام السابقة وإظهار القسم المطلوب مع هيكل التحميل العصري إن كان فارغاً
         document.querySelectorAll('.section').forEach(s => {
             if (s.id === tab) {
                 s.style.display = 'block';
                 s.classList.add('active');
+                if (!s.innerHTML || s.innerHTML.trim() === '') {
+                    s.innerHTML = window.getSectionSkeletonHTML(tab);
+                }
             } else {
                 s.style.display = 'none';
                 s.classList.remove('active');
@@ -321,95 +431,103 @@
         const titleEl = document.getElementById('page-title');
         if (titleEl) titleEl.textContent = titles[tab] || 'لوحة التحكم';
 
-        // التعامل مع كل تبويب وتحميل ملفاته عند الطلب من الذاكرة
-        if (tab === 'dashboard') {
-            await window.ModuleLoader.load('dashboard-tab');
-            if (typeof window.ensureDashboardHTML === 'function') window.ensureDashboardHTML();
-            if (!window.dashboardSectionsInitialized.dashboard && typeof window.loadLocalDashboardStats === 'function') {
-                window.dashboardSectionsInitialized.dashboard = true;
-                await window.loadLocalDashboardStats();
-            }
-        } else if (tab === 'management') {
-            // لا نطلب المنتجات من Work قبل التأكد من وصول اللقطة اللحظية.
-            const realtimeReady = typeof window.ensureDashboardRealtime === 'function'
-                ? await window.ensureDashboardRealtime()
-                : false;
-            if (!realtimeReady) {
-                if (typeof window.showT === 'function') {
-                    window.showT('بانتظار الاتصال اللحظي لتحميل المنتجات', 'warning');
+        try {
+            // التعامل مع كل تبويب وتحميل ملفاته عند الطلب من الذاكرة
+            if (tab === 'dashboard') {
+                await window.ModuleLoader.load('dashboard-tab');
+                if (typeof window.ensureDashboardHTML === 'function') window.ensureDashboardHTML();
+                if (!window.dashboardSectionsInitialized.dashboard && typeof window.loadLocalDashboardStats === 'function') {
+                    window.dashboardSectionsInitialized.dashboard = true;
+                    await window.loadLocalDashboardStats();
                 }
-                return;
-            }
-            await Promise.all([
-                window.ModuleLoader.load('products'),
-                window.ModuleLoader.load('categories'),
-                window.ModuleLoader.load('product-form')
-            ]);
-            if (typeof window.ensureProductsHTML === 'function') window.ensureProductsHTML();
-            if (typeof window.showProductList === 'function') window.showProductList();
-            const searchInput = document.getElementById('search-p');
-            // احتفظ بالبحث وبشبكة المنتجات عند العودة للتبويب حتى لا تعاد
-            // عناصر الصور وطلبات الشبكة من الصفر.
-            if (searchInput && typeof window.currentSearchTerm === 'string') {
-                searchInput.value = window.currentSearchTerm;
-            }
-
-            const allProducts = window.AppStore.getProducts();
-            if (allProducts && allProducts.length > 0) {
-                const grid = document.getElementById('p-grid');
-                const hasRenderedProducts = Boolean(grid && grid.querySelector('.product-card'));
-                // أعد الرسم فقط عند أول دخول أو بعد إزالة الشبكة فعلياً.
-                if (!hasRenderedProducts && typeof window.renderProductsInitial === 'function') {
-                    window.renderProductsInitial();
-                } else if (!hasRenderedProducts && typeof window.renderProductsGrid === 'function') {
-                    window.renderProductsGrid(allProducts.slice(0, 12), false);
-                } else if (window.hasMoreProducts && typeof window.setupProductObserver === 'function') {
-                    window.setupProductObserver();
+            } else if (tab === 'management') {
+                const realtimeReady = typeof window.ensureDashboardRealtime === 'function'
+                    ? await window.ensureDashboardRealtime()
+                    : false;
+                if (!realtimeReady) {
+                    if (typeof window.showT === 'function') {
+                        window.showT('بانتظار الاتصال اللحظي لتحميل المنتجات', 'warning');
+                    }
+                    return;
                 }
-            } else {
-                // لا يوجد كاش — أظهر مؤشر تحميل وجلب من الخادم
-                const grid = document.getElementById('p-grid');
-                if (grid) {
-                    grid.innerHTML = '<div style="grid-column:1/-1; text-align:center; padding:45px 20px;"><i class="fas fa-circle-notch fa-spin text-primary" style="font-size:2.2rem;"></i><div style="margin-top:12px; color:var(--text-muted); font-size:0.9rem; font-weight:700;">جاري تحميل المنتجات...</div></div>';
+                await Promise.all([
+                    window.ModuleLoader.load('products'),
+                    window.ModuleLoader.load('categories'),
+                    window.ModuleLoader.load('product-form')
+                ]);
+                if (typeof window.ensureProductsHTML === 'function') window.ensureProductsHTML();
+                if (typeof window.showProductList === 'function') window.showProductList();
+                const searchInput = document.getElementById('search-p');
+                if (searchInput && typeof window.currentSearchTerm === 'string') {
+                    searchInput.value = window.currentSearchTerm;
                 }
-                if (!window.dashboardSectionsInitialized.management && typeof window.loadAllFromJson === 'function') {
-                    window.dashboardSectionsInitialized.management = true;
-                    window.loadAllFromJson(1, '', false, false);
+
+                const allProducts = window.AppStore.getProducts();
+                if (allProducts && allProducts.length > 0) {
+                    const grid = document.getElementById('p-grid');
+                    const hasRenderedProducts = Boolean(grid && grid.querySelector('.product-card'));
+                    if (!hasRenderedProducts && typeof window.renderProductsInitial === 'function') {
+                        window.renderProductsInitial();
+                    } else if (!hasRenderedProducts && typeof window.renderProductsGrid === 'function') {
+                        window.renderProductsGrid(allProducts.slice(0, 12), false);
+                    } else if (window.hasMoreProducts && typeof window.setupProductObserver === 'function') {
+                        window.setupProductObserver();
+                    }
+                } else {
+                    // لا يوجد كاش — أظهر هيكل تحميل عصري وخفيف في شبكة المنتجات
+                    const grid = document.getElementById('p-grid');
+                    if (grid) {
+                        grid.innerHTML = `
+                            <div class="sk-grid" style="grid-column:1/-1;">
+                                <div class="sk-card"><div class="sk-shimmer sk-product-box"></div><div class="sk-shimmer sk-bar" style="width:75%;margin-bottom:8px;"></div><div class="sk-shimmer sk-bar-sm"></div></div>
+                                <div class="sk-card"><div class="sk-shimmer sk-product-box"></div><div class="sk-shimmer sk-bar" style="width:60%;margin-bottom:8px;"></div><div class="sk-shimmer sk-bar-sm"></div></div>
+                                <div class="sk-card"><div class="sk-shimmer sk-product-box"></div><div class="sk-shimmer sk-bar" style="width:85%;margin-bottom:8px;"></div><div class="sk-shimmer sk-bar-sm"></div></div>
+                                <div class="sk-card"><div class="sk-shimmer sk-product-box"></div><div class="sk-shimmer sk-bar" style="width:70%;margin-bottom:8px;"></div><div class="sk-shimmer sk-bar-sm"></div></div>
+                            </div>
+                        `;
+                    }
+                    if (!window.dashboardSectionsInitialized.management && typeof window.loadAllFromJson === 'function') {
+                        window.dashboardSectionsInitialized.management = true;
+                        window.loadAllFromJson(1, '', false, false);
+                    }
+                }
+                if (typeof window.fetchCategoryTree === 'function' && (!window.flatCategoriesList || window.flatCategoriesList.length === 0)) {
+                    window.fetchCategoryTree();
+                }
+            } else if (tab === 'orders') {
+                await Promise.all([
+                    window.ModuleLoader.load('orders'),
+                    window.ModuleLoader.load('orders-actions')
+                ]);
+                if (typeof window.ensureOrdersHTML === 'function') window.ensureOrdersHTML();
+
+                const newOrdersBadge = document.getElementById('new-orders-badge');
+                const navBadgeMobile = document.getElementById('nav-badge-mobile');
+                if (newOrdersBadge) newOrdersBadge.style.display = 'none';
+                if (navBadgeMobile) navBadgeMobile.style.display = 'none';
+
+                const activeTabBtn = document.querySelector('#orders .segment-btn.active') || document.querySelector('#orders .segment-btn');
+                const currentFilter = (activeTabBtn && activeTabBtn.innerText.includes('النشطة')) ? 'active' : 'archived';
+
+                const cachedOrders = window.AppStore.getOrders(currentFilter);
+                if (cachedOrders && cachedOrders.length > 0 && typeof window.renderOrdersUI === 'function') {
+                    window.renderOrdersUI(cachedOrders, currentFilter);
+                }
+
+                if (!window.dashboardSectionsInitialized.orders && typeof window.loadOrders === 'function') {
+                    window.dashboardSectionsInitialized.orders = true;
+                    window.loadOrders(currentFilter, activeTabBtn, true);
+                }
+            } else if (tab === 'settings') {
+                await window.ModuleLoader.load('settings');
+                if (typeof window.ensureSettingsHTML === 'function') window.ensureSettingsHTML();
+                if (typeof window.updateSettingsUI === 'function') {
+                    window.updateSettingsUI(window.currentMerchantData);
                 }
             }
-            if (typeof window.fetchCategoryTree === 'function' && (!window.flatCategoriesList || window.flatCategoriesList.length === 0)) {
-                window.fetchCategoryTree();
-            }
-        } else if (tab === 'orders') {
-            await Promise.all([
-                window.ModuleLoader.load('orders'),
-                window.ModuleLoader.load('orders-actions')
-            ]);
-            if (typeof window.ensureOrdersHTML === 'function') window.ensureOrdersHTML();
-
-            const newOrdersBadge = document.getElementById('new-orders-badge');
-            const navBadgeMobile = document.getElementById('nav-badge-mobile');
-            if (newOrdersBadge) newOrdersBadge.style.display = 'none';
-            if (navBadgeMobile) navBadgeMobile.style.display = 'none';
-
-            const activeTabBtn = document.querySelector('#orders .segment-btn.active') || document.querySelector('#orders .segment-btn');
-            const currentFilter = (activeTabBtn && activeTabBtn.innerText.includes('النشطة')) ? 'active' : 'archived';
-
-            const cachedOrders = window.AppStore.getOrders(currentFilter);
-            if (cachedOrders && cachedOrders.length > 0 && typeof window.renderOrdersUI === 'function') {
-                window.renderOrdersUI(cachedOrders, currentFilter);
-            }
-
-            if (!window.dashboardSectionsInitialized.orders && typeof window.loadOrders === 'function') {
-                window.dashboardSectionsInitialized.orders = true;
-                window.loadOrders(currentFilter, activeTabBtn, true);
-            }
-        } else if (tab === 'settings') {
-            await window.ModuleLoader.load('settings');
-            if (typeof window.ensureSettingsHTML === 'function') window.ensureSettingsHTML();
-            if (typeof window.updateSettingsUI === 'function') {
-                window.updateSettingsUI(window.currentMerchantData);
-            }
+        } finally {
+            // إتمام شريط التقدم الفائق بسلاسة
+            window.finishTabProgress();
         }
 
         window.scrollTo({

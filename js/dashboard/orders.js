@@ -30,7 +30,10 @@
                     </div>
                 </div>
                 <div id="orders-container" class="orders-list-compact">
-                    <div style="text-align: center; padding: 40px;"><i class="fas fa-spinner fa-spin" style="font-size: 2rem; color: var(--primary);"></i></div>
+                    <div class="section-skeleton" style="padding: 10px 0;">
+                        <div class="sk-card"><div style="display:flex;justify-content:space-between;margin-bottom:12px;"><div class="sk-shimmer sk-bar" style="width:130px;"></div><div class="sk-shimmer" style="width:70px;height:24px;border-radius:12px;"></div></div><div class="sk-shimmer sk-bar" style="width:55%;margin-bottom:10px;"></div><div class="sk-shimmer sk-bar-sm"></div></div>
+                        <div class="sk-card"><div style="display:flex;justify-content:space-between;margin-bottom:12px;"><div class="sk-shimmer sk-bar" style="width:150px;"></div><div class="sk-shimmer" style="width:70px;height:24px;border-radius:12px;"></div></div><div class="sk-shimmer sk-bar" style="width:65%;margin-bottom:10px;"></div><div class="sk-shimmer sk-bar-sm"></div></div>
+                    </div>
                 </div>
             </div>`;
             ordersSec.innerHTML = html;
@@ -90,7 +93,12 @@
         if (cached && cached.length > 0 && isOrdersTabActive && container) {
             window.renderOrdersUI(cached, filterType);
         } else if (!hasRealtimeData && isOrdersTabActive && container) {
-            container.innerHTML = `<div style="text-align: center; padding: 40px;"><i class="fas fa-circle-notch fa-spin" style="font-size: 2rem; color: var(--primary);"></i><div style="margin-top:10px; color:var(--text-muted); font-size:0.85rem; font-weight:700;">${filterType === 'archived' ? 'جاري تحميل السجل...' : 'جاري التحميل...'}</div></div>`;
+            container.innerHTML = `
+                <div class="section-skeleton" style="padding: 10px 0;">
+                    <div class="sk-card"><div style="display:flex;justify-content:space-between;margin-bottom:12px;"><div class="sk-shimmer sk-bar" style="width:130px;"></div><div class="sk-shimmer" style="width:70px;height:24px;border-radius:12px;"></div></div><div class="sk-shimmer sk-bar" style="width:55%;margin-bottom:10px;"></div><div class="sk-shimmer sk-bar-sm"></div></div>
+                    <div class="sk-card"><div style="display:flex;justify-content:space-between;margin-bottom:12px;"><div class="sk-shimmer sk-bar" style="width:150px;"></div><div class="sk-shimmer" style="width:70px;height:24px;border-radius:12px;"></div></div><div class="sk-shimmer sk-bar" style="width:65%;margin-bottom:10px;"></div><div class="sk-shimmer sk-bar-sm"></div></div>
+                </div>
+            `;
         } else if (hasRealtimeData && isOrdersTabActive && container) {
             window.renderOrdersUI(cached, filterType);
         }
