@@ -173,6 +173,10 @@ const redirectsContent = `# Cloudflare Pages — Clean URL routing
 /dashboard/                   /merchant-app.html                     200
 /merchant-dashboard           /merchant-app.html                     200
 /merchant-dashboard/          /merchant-app.html                     200
+/merchant-app/js/*            /js/:splat                              200
+/merchant-app/css/*           /css/:splat                             200
+/merchant-app/manifest.json   /manifest.json                         200
+/merchant-app/*               /index.html                             200
 /builder                      /store-builder/index.html           200
 /studio                       /store-builder/index.html           200
 /store-builder.html           /store-builder/index.html           200
