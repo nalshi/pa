@@ -456,7 +456,18 @@
                     window.ModuleLoader.load('product-form')
                 ]);
                 if (typeof window.ensureProductsHTML === 'function') window.ensureProductsHTML();
-                if (typeof window.showProductList === 'function') window.showProductList();
+                const productForm = document.getElementById('product-form-view');
+                const isProductFormOpen = Boolean(
+                    productForm &&
+                    !productForm.hidden &&
+                    productForm.getAttribute('aria-hidden') !== 'true' &&
+                    getComputedStyle(productForm).display !== 'none'
+                );
+                // لا تعُد إلى قائمة الكروت إذا فتح المستخدم نموذج الإضافة/التعديل
+                // أثناء انتظار تحميل بيانات تبويب المنتجات.
+                if (!isProductFormOpen && typeof window.showProductList === 'function') {
+                    window.showProductList();
+                }
                 const searchInput = document.getElementById('search-p');
                 if (searchInput && typeof window.currentSearchTerm === 'string') {
                     searchInput.value = window.currentSearchTerm;
