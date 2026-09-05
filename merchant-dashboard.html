@@ -87,14 +87,14 @@
 
     window.tryRevealApp = function() {
         const ls = document.getElementById('initial-loading-screen');
-        const socketConnected = Boolean(
-            window.WebSocket &&
-            window.dashboardSocketReady &&
-            window.dashboardSnapshotLoaded &&
-            window.dashboardSocket &&
-            window.dashboardSocket.readyState === WebSocket.OPEN
+        const isRealtimeReady = typeof window.isDashboardRealtimeReady === 'function' 
+            ? window.isDashboardRealtimeReady() 
+            : Boolean(window.dashboardSocketReady && window.dashboardSnapshotLoaded);
+        const hasCache = Boolean(
+            localStorage.getItem('merchant_products_cache') || 
+            localStorage.getItem('merchant_settings_cache')
         );
-        if (!ls || ls.dataset.hidden === '1' || !window.appDataReady || !window.dashboardConnectionChecked || !socketConnected) return;
+        if (!ls || ls.dataset.hidden === '1' || !window.appDataReady || (!isRealtimeReady && !hasCache && !window.dashboardConnectionChecked)) return;
         ls.dataset.hidden = '1';
         ls.style.transition = 'opacity 0.12s ease';
         ls.style.opacity = '0';
