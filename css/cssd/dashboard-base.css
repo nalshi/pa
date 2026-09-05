@@ -139,6 +139,26 @@ body.dark-mode .brand-nalsh-logo .nalsh-text-ar {
     content: ''; position: absolute; left: 0; top: 0; height: 100%; width: 50%;
     background: var(--primary); border-radius: 3px;
 }
+.ils-connection-status {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    margin-top: 14px;
+    color: var(--text-muted);
+    font-size: 0.78rem;
+    font-weight: 700;
+}
+.ils-status-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--primary);
+    box-shadow: 0 0 0 4px var(--primary-glow);
+    animation: ils-pulse 1.6s ease-in-out infinite;
+}
+@keyframes ils-pulse {
+    50% { opacity: 0.35; transform: scale(0.8); }
+}
 
 .new-order-alert { 
     position: fixed; top: -150px; left: 0; right: 0; margin: 0 auto;
