@@ -415,13 +415,7 @@
     // ===== بانر رابط المتجر =====
     window.renderStoreLinkBanner = function () {
         const username = window.merchantUsername || 'store';
-        let basePath = window.location.pathname
-            .replace(/\/merchant-dashboard\.html$/, '')
-            .replace(/\/merchant-dashboard$/, '')
-            .replace(/merchant-dashboard\.html$/, '')
-            .replace(/merchant-dashboard$/, '');
-        if (basePath.endsWith('/')) basePath = basePath.slice(0, -1);
-        const storeUrl = `${window.location.origin}${basePath}/${username}`;
+        const storeUrl = `${window.location.origin}/${encodeURIComponent(username)}`;
 
         const bannerHTML = `<div class="store-link-banner"><div class="store-link-info"><div class="store-link-icon"><i class="fas fa-link"></i></div><div class="store-link-text"><h3>رابط متجرك الخاص</h3><p id="merchant-store-url" dir="ltr">${storeUrl}</p></div></div><div class="store-link-actions"><button class="btn-outline" onclick="copyStoreLink('${storeUrl}')"><i class="far fa-copy"></i> نسخ الرابط</button><a href="${storeUrl}" target="_blank" class="btn-main" style="width:auto; padding: 8px 18px; text-decoration: none;"><i class="fas fa-external-link-alt"></i> زيارة المتجر</a></div></div>`;
         const dashboardSec = document.getElementById('dashboard');
