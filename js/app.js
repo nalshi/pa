@@ -219,7 +219,7 @@ window.App = {
         const pathParts = path.split('/').filter(Boolean);
         const isFileUrl = window.location.protocol === 'file:';
         
-        const ignoredPaths = ['', 'index.html', 'merchant-app.html', 'merchant-dashboard', 'auth-page.html', 'login', 'api.php'];
+        const ignoredPaths = ['', 'index.html', 'merchant-app.html', 'merchant-app', 'merchant-dashboard', 'auth-page.html', 'login', 'api.php'];
         
         let storeFromPath = null;
         let productFromPath = null;
@@ -229,7 +229,12 @@ window.App = {
             const firstLower = firstSegment.toLowerCase();
             const isWindowsDrive = /^[a-z]:$/.test(firstSegment);
 
-            if (!ignoredPaths.includes(firstLower) && !isWindowsDrive) {
+            if (firstLower === 'merchant-app' && pathParts.length > 1) {
+                storeFromPath = pathParts[1];
+                if (pathParts.length > 2 && pathParts[2].startsWith('p')) {
+                    productFromPath = pathParts[2].substring(1);
+                }
+            } else if (!ignoredPaths.includes(firstLower) && !isWindowsDrive) {
                 storeFromPath = firstSegment;
                 if (pathParts.length > 1 && pathParts[1].startsWith('p')) {
                     productFromPath = pathParts[1].substring(1);
