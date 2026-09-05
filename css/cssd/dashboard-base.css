@@ -258,9 +258,125 @@ body.dark-mode .brand-nalsh-logo .nalsh-text-ar {
 .b-nav-item.active { background: rgba(37, 99, 235, 0.08); }
 .b-nav-item.active i { color: var(--primary); transform: translateY(-1px); }
 
-.section { display: none; animation: fadeInScale 0.35s forwards; }
-.section.active { display: block; }
-@keyframes fadeInScale { 0% { opacity: 0; transform: scale(0.99) translateY(6px); } 100% { opacity: 1; transform: scale(1) translateY(0); } }
+/* ===== شريط تقدم الانتقال الفائق الخفة والعصرية ===== */
+.tab-progress-bar {
+    position: sticky;
+    top: 0;
+    left: 0;
+    width: 0%;
+    height: 3px;
+    background: linear-gradient(90deg, var(--primary), #06b6d4, #818cf8);
+    z-index: 1000;
+    opacity: 0;
+    pointer-events: none;
+    transition: width 0.16s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.14s ease-out;
+    border-radius: 0 3px 3px 0;
+    box-shadow: 0 0 12px rgba(37, 99, 235, 0.4);
+    will-change: width, opacity;
+}
+.tab-progress-bar.active {
+    opacity: 1;
+}
+.tab-progress-bar.finished {
+    width: 100% !important;
+    opacity: 0;
+    transition: width 0.12s ease-out, opacity 0.18s ease-out 0.06s;
+}
+
+/* تحسين انتقال الأقسام ليكون فائق الخفة ومريحاً للعين */
+.section { 
+    display: none; 
+}
+.section.active { 
+    display: block; 
+    animation: sectionEnter 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    will-change: opacity, transform;
+}
+@keyframes sectionEnter { 
+    0% { opacity: 0; transform: translateY(6px); } 
+    100% { opacity: 1; transform: translateY(0); } 
+}
+
+/* إلغاء الأنيميشن في الأجهزة الضعيفة لتوفير أقصى سرعة واستجابة فورية 60fps */
+html.low-performance .section,
+.low-performance .section,
+html.low-performance .section.active,
+.low-performance .section.active {
+    animation: none !important;
+    transform: none !important;
+}
+
+/* ===== هيكل التحميل العصري خفيف الوزن (Modern Skeletons) ===== */
+.section-skeleton {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding: 10px 0 25px;
+    animation: skeletonFadeIn 0.18s ease;
+}
+@keyframes skeletonFadeIn {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.sk-shimmer {
+    background: var(--bg-surface);
+    border-radius: var(--radius-md);
+    position: relative;
+    overflow: hidden;
+}
+.sk-shimmer::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    transform: translateX(100%);
+    background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.08) 50%, transparent 100%);
+    animation: skShimmerMove 1.4s infinite;
+}
+body:not(.dark-mode) .sk-shimmer::after {
+    background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.45) 50%, transparent 100%);
+}
+@keyframes skShimmerMove {
+    100% { transform: translateX(-100%); }
+}
+
+/* في الأجهزة الضعيفة: نبض فائق الخفة بدون تدوير مصفوفات التدرج */
+html.low-performance .sk-shimmer::after,
+.low-performance .sk-shimmer::after {
+    display: none !important;
+}
+html.low-performance .sk-shimmer,
+.low-performance .sk-shimmer {
+    animation: skPulseLight 1.8s ease-in-out infinite alternate !important;
+}
+@keyframes skPulseLight {
+    from { opacity: 0.55; }
+    to { opacity: 0.92; }
+}
+
+.sk-bar { height: 16px; border-radius: 8px; }
+.sk-bar-lg { height: 44px; border-radius: 12px; }
+.sk-bar-sm { height: 12px; border-radius: 6px; width: 60%; }
+.sk-card {
+    background: var(--bg-solid);
+    border: 1px solid var(--border-glass);
+    border-radius: var(--radius-xl);
+    padding: 18px;
+    box-shadow: var(--shadow-sm);
+}
+.sk-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 16px;
+}
+.sk-product-box {
+    height: 140px;
+    border-radius: var(--radius-lg);
+    margin-bottom: 12px;
+}
 
 .card-4d { background: var(--bg-glass); backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px); border-radius: var(--radius-xl); padding: 22px; border: 1px solid var(--border-glass); box-shadow: var(--shadow-4d); margin-bottom: 20px; }
 .card-header { font-size: 1.2rem; font-weight: 900; margin-bottom: 18px; display: flex; align-items: center; gap: 10px; color: var(--text-main);}
