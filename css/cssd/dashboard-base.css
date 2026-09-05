@@ -1059,6 +1059,23 @@ body.dark-mode .cur-luxury-badge {
 
 .v-details-section { flex: 1; display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
 
+/* Keep product form fields contained instead of letting long controls overlap. */
+#product-form-view .form-grid,
+#product-form-view .v-details-section {
+    min-width: 0;
+}
+
+#product-form-view .form-grid > .input-group,
+#product-form-view .v-details-section > .input-group {
+    min-width: 0;
+}
+
+#product-form-view .modern-input,
+#product-form-view .custom-select-wrapper {
+    min-width: 0;
+    box-sizing: border-box;
+}
+
 .table-responsive { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; border-radius: var(--radius-lg); border: 1px solid var(--border-glass); }
 .variant-table { width: 100%; border-collapse: collapse; background: var(--bg-solid); white-space: nowrap; }
 .variant-table th { background: var(--bg-body); padding: 10px 14px; text-align: right; color: var(--text-muted); font-size: 0.85rem; border-bottom: 2px solid var(--border-glass); }
@@ -1531,6 +1548,7 @@ html, body { overscroll-behavior-y: none !important; -webkit-overflow-scrolling:
     .variant-card { flex-direction: column; align-items: stretch; gap: 12px; padding: 12px;}
     .v-img-section { width: 100%; flex-direction: row; justify-content: space-between; align-items: center; border-bottom: 1px dashed var(--border-glass); padding-bottom: 10px;}
     .v-details-section { grid-template-columns: 1fr; }
+    #product-form-view .form-grid { grid-template-columns: 1fr; }
     
     .store-link-banner { flex-direction: column; align-items: flex-start; }
     .store-link-actions { width: 100%; justify-content: stretch; }
