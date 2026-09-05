@@ -15,7 +15,7 @@ window.getIsolatedCartKey = function() {
         // حل بديل: نفس منطق App.init بالضبط (رابط المسار ثم ?store= ثم الافتراضي)
         // هذا يضمن نفس مفتاح السلة سواء كانت App جاهزة بعد أو لا
         const pathParts = window.location.pathname.replace(/^\/|\/$/g, '').split('/');
-        const ignoredPaths = ['', 'index.html', 'merchant-dashboard.html', 'merchant-dashboard', 'login.html', 'login', 'api.php'];
+        const ignoredPaths = ['', 'index.html', 'merchant-app.html', 'merchant-dashboard', 'auth-page.html', 'login', 'api.php'];
         const urlParams = new URLSearchParams(window.location.search);
 
         let storeFromPath = null;

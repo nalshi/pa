@@ -2775,7 +2775,7 @@ var Topbar = class {
     return `
         <header class="sb-topbar">
             <div class="sb-topbar-start">
-                <a href="merchant-dashboard.html" class="sb-btn-back">
+                <a href="merchant-app.html" class="sb-btn-back">
                     <i class="fas fa-arrow-right"></i>
                     <span>\u0644\u0648\u062D\u0629 \u0627\u0644\u062A\u0627\u062C\u0631</span>
                 </a>

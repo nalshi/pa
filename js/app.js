@@ -219,7 +219,7 @@ window.App = {
         const pathParts = path.split('/').filter(Boolean);
         const isFileUrl = window.location.protocol === 'file:';
         
-        const ignoredPaths = ['', 'index.html', 'merchant-dashboard.html', 'merchant-dashboard', 'login.html', 'login', 'api.php'];
+        const ignoredPaths = ['', 'index.html', 'merchant-app.html', 'merchant-dashboard', 'auth-page.html', 'login', 'api.php'];
         
         let storeFromPath = null;
         let productFromPath = null;
