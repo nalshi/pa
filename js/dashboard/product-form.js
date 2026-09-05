@@ -17,12 +17,12 @@
         if (!document.getElementById('publish-lock-overlay')) {
             const overlayHtml = `
             <div id="publish-lock-overlay" class="publish-lock-overlay">
-                <div class="publish-content-box" style="background: var(--bg-solid); padding: 30px; border-radius: var(--radius-xl); text-align: center; border: 1px solid var(--border-glass); box-shadow: 0 25px 50px rgba(0,0,0,0.3); width: 90%; max-width: 380px;">
-                    <div id="publish-icon"><div class="publish-spinner" style="margin: 0 auto 16px;"></div></div>
-                    <h2 class="publish-lock-text" id="publish-lock-text" style="color: var(--text-main); font-size: 1.3rem;">جاري التجهيز...</h2>
-                    <p class="publish-lock-subtext" id="publish-lock-subtext" style="color: var(--text-muted); margin-bottom: 20px; font-size: 0.9rem;">الرجاء عدم إغلاق هذه الصفحة</p>
-                    <div style="width: 100%; height: 6px; background: var(--bg-body); border-radius: 10px; overflow: hidden; border: 1px solid var(--border-glass);">
-                        <div id="publish-progress" style="height: 100%; width: 0%; background: var(--primary-gradient); transition: width 0.4s ease;"></div>
+                <div class="publish-content-box">
+                    <div id="publish-icon"><div class="publish-spinner"></div></div>
+                    <h2 class="publish-lock-text" id="publish-lock-text" style="color: var(--text-main); font-size: 1.25rem; font-weight: 900; margin-bottom: 4px;">جاري التجهيز...</h2>
+                    <p class="publish-lock-subtext" id="publish-lock-subtext" style="color: var(--text-muted); margin-bottom: 18px; font-size: 0.85rem; font-weight: 700;">الرجاء عدم إغلاق هذه الصفحة</p>
+                    <div style="width: 100%; height: 5px; background: var(--bg-body); border-radius: 10px; overflow: hidden; border: 1px solid var(--border-glass);">
+                        <div id="publish-progress" style="height: 100%; width: 0%; background: linear-gradient(90deg, var(--primary), var(--accent-cyan)); transition: width 0.35s cubic-bezier(0.4, 0, 0.2, 1);"></div>
                     </div>
                 </div>
             </div>`;
@@ -155,6 +155,7 @@
 
     // ===== إظهار وإخفاء نموذج المنتج =====
     window.showProductForm = async function (isEdit = false) {
+        if (typeof window.startTabProgress === 'function') window.startTabProgress();
         window.ensureProductFormHTML();
         await window.ModuleLoader.load('categories');
         if (typeof window.initDynamicCategories === 'function') window.initDynamicCategories();
@@ -165,10 +166,17 @@
 
         if (listView) listView.style.display = 'none';
         if (catView) catView.style.display = 'none';
-        if (formView) formView.style.display = 'block';
+        if (formView) {
+            formView.style.display = 'block';
+            formView.classList.remove('product-view-enter');
+            void formView.offsetWidth; // trigger reflow for smooth enter
+            formView.classList.add('product-view-enter');
+        }
 
         const formTitle = document.getElementById('form-title');
         if (formTitle) formTitle.textContent = isEdit ? 'تعديل منتج' : 'إضافة منتج';
+
+        const btnSave = document.getElementById('btn-save');
 
         if (!isEdit) {
             const form = document.getElementById('p-form');
@@ -197,31 +205,49 @@
                 pQtyTypeSel.value = 'tracked';
                 if (typeof window.updateCustomSelect === 'function') window.updateCustomSelect(pQtyTypeSel);
             }
+            window.toggleMainQtyInput();
+
             const catSel = document.getElementById('single-category-select');
             if (catSel) {
                 catSel.value = '';
                 if (typeof window.updateCustomSelect === 'function') window.updateCustomSelect(catSel);
             }
 
-            const btnSave = document.getElementById('btn-save');
             if (btnSave) {
                 btnSave.disabled = false;
                 btnSave.style.opacity = '1';
                 btnSave.style.cursor = 'pointer';
+                btnSave.innerHTML = '<i class="fas fa-cloud-upload-alt"></i> <span>حفظ ونشر المنتج</span>';
             }
 
             window.isProductFormDirty = false;
+            window.originalProductData = window.captureCurrentFormData();
+            if (typeof window.finishTabProgress === 'function') window.finishTabProgress();
+        } else {
+            if (btnSave) {
+                btnSave.innerHTML = '<i class="fas fa-save"></i> <span>حفظ التعديلات</span>';
+            }
         }
+
+        const isLowPerf = document.documentElement.classList.contains('low-performance');
+        window.scrollTo({ top: 0, behavior: isLowPerf ? 'auto' : 'smooth' });
     };
 
     window.executeShowProductList = function () {
+        if (typeof window.startTabProgress === 'function') window.startTabProgress();
         const formView = document.getElementById('product-form-view');
         const listView = document.getElementById('product-list-view');
         const catView = document.getElementById('category-manager-view');
         if (formView) formView.style.display = 'none';
         if (catView) catView.style.display = 'none';
-        if (listView) listView.style.display = 'block';
+        if (listView) {
+            listView.style.display = 'block';
+            listView.classList.remove('product-view-enter');
+            void listView.offsetWidth;
+            listView.classList.add('product-view-enter');
+        }
         window.isProductFormDirty = false;
+        if (typeof window.finishTabProgress === 'function') window.finishTabProgress();
     };
 
     window.showProductList = function () {
@@ -244,105 +270,108 @@
         }
     };
 
-    // ===== تعديل منتج =====
-    window.editProduct = function (p) {
-        window.showSmartConfirm({
-            title: 'تعديل المنتج',
-            msg: `هل تريد فتح محرر البيانات للمنتج: "${p.name}"؟`,
-            icon: 'fa-edit',
-            type: 'info',
-            confirmText: 'فتح المحرر',
-            onConfirm: () => {
-                window.showProductForm(true);
-                setTimeout(() => {
-                    const pId = document.getElementById('p-id');
-                    if (pId) pId.value = p.global_product_id || p.id;
-                    const pName = document.getElementById('p-name');
-                    if (pName) pName.value = p.name;
-                    const pDesc = document.getElementById('p-desc');
-                    if (pDesc) pDesc.value = p.mainDescription || p.description || '';
-                    const pPrice = document.getElementById('p-price');
-                    if (pPrice) pPrice.value = p.price;
-                    const pCost = document.getElementById('p-cost');
-                    if (pCost) pCost.value = p.cost_price || 0;
-                    const pDiscount = document.getElementById('p-discount');
-                    if (pDiscount) pDiscount.value = p.discount || 0;
+    // ===== تعديل منتج فوري وسريع مع إضاءة شريط التقدم =====
+    window.editProduct = async function (p) {
+        if (!p) return;
+        if (typeof window.startTabProgress === 'function') window.startTabProgress();
 
-                    const pCurrency = document.getElementById('p-currency');
-                    if (pCurrency) {
-                        pCurrency.value = p.currency || 'YER';
-                        if (typeof window.updateCustomSelect === 'function') window.updateCustomSelect(pCurrency);
-                    }
+        await window.showProductForm(true);
 
-                    const pQtyType = document.getElementById('p-qty-type');
-                    if (pQtyType) {
-                        pQtyType.value = p.quantity_type || 'tracked';
-                        if (typeof window.updateCustomSelect === 'function') window.updateCustomSelect(pQtyType);
-                    }
-                    window.toggleMainQtyInput();
+        const pId = document.getElementById('p-id');
+        if (pId) pId.value = p.global_product_id || p.id;
+        const pName = document.getElementById('p-name');
+        if (pName) pName.value = p.name || '';
+        const pDesc = document.getElementById('p-desc');
+        if (pDesc) pDesc.value = p.mainDescription || p.description || '';
+        const pPrice = document.getElementById('p-price');
+        if (pPrice) pPrice.value = p.price !== undefined ? p.price : '';
+        const pCost = document.getElementById('p-cost');
+        if (pCost) pCost.value = p.cost_price || 0;
+        const pDiscount = document.getElementById('p-discount');
+        if (pDiscount) pDiscount.value = p.discount || 0;
 
-                    let catId = p.category_id || '';
-                    if (!catId && p.type && window.flatCategoriesList && window.flatCategoriesList.length > 0) {
-                        const foundCat = window.flatCategoriesList.find(c => c.name === p.type);
-                        if (foundCat) catId = foundCat.id;
-                    }
-                    const catSelect = document.getElementById('single-category-select');
-                    if (catSelect) {
-                        catSelect.value = catId ? String(catId) : '';
-                        if (typeof window.updateCustomSelect === 'function') window.updateCustomSelect(catSelect);
-                    }
+        const pCurrency = document.getElementById('p-currency');
+        if (pCurrency) {
+            pCurrency.value = p.currency || 'YER';
+            if (typeof window.updateCustomSelect === 'function') window.updateCustomSelect(pCurrency);
+        }
 
-                    const isAvailEl = document.getElementById('isAvailable');
-                    if (isAvailEl) {
-                        isAvailEl.checked = (p.is_available == '1' || p.is_available === true || p.isAvailable == '1' || p.isAvailable === true || p.is_available === undefined);
-                    }
+        const pQtyType = document.getElementById('p-qty-type');
+        if (pQtyType) {
+            pQtyType.value = p.quantity_type || 'tracked';
+            if (typeof window.updateCustomSelect === 'function') window.updateCustomSelect(pQtyType);
+        }
+        window.toggleMainQtyInput();
 
-                    if (p.image) {
-                        const mainLabel = document.getElementById('main-img-label');
-                        if (mainLabel) mainLabel.style.display = 'none';
-                        const previewBox = document.getElementById('main-img-preview-box');
-                        if (previewBox) previewBox.style.display = 'block';
-                        const previewImg = document.getElementById('main-img-preview');
-                        if (previewImg) previewImg.src = p.image;
-                        const existImg = document.getElementById('existing_image');
-                        if (existImg) existImg.value = p.image;
-                    }
+        let catId = p.category_id || '';
+        if (!catId && p.type && window.flatCategoriesList && window.flatCategoriesList.length > 0) {
+            const foundCat = window.flatCategoriesList.find(c => c.name === p.type);
+            if (foundCat) catId = foundCat.id;
+        }
+        const catSelect = document.getElementById('single-category-select');
+        if (catSelect) {
+            catSelect.value = catId ? String(catId) : '';
+            if (typeof window.updateCustomSelect === 'function') window.updateCustomSelect(catSelect);
+        }
 
-                    let productOptions = p.options;
-                    if (typeof productOptions === 'string') {
-                        try { productOptions = JSON.parse(productOptions); } catch (e) { productOptions = []; }
-                    }
-                    if (!Array.isArray(productOptions)) productOptions = [];
+        const isAvailEl = document.getElementById('isAvailable');
+        if (isAvailEl) {
+            isAvailEl.checked = (p.is_available == '1' || p.is_available === true || p.isAvailable == '1' || p.isAvailable === true || p.is_available === undefined);
+        }
 
-                    if (productOptions.length === 0) {
-                        const hasVar = document.getElementById('has-variants-cb');
-                        if (hasVar) hasVar.checked = false;
-                        window.toggleVariantsBuilder();
-                        const pQty = document.getElementById('p-qty');
-                        if (pQty) pQty.value = p.quantity || 1;
-                    } else {
-                        const hasVar = document.getElementById('has-variants-cb');
-                        if (hasVar) hasVar.checked = true;
-                        window.toggleVariantsBuilder();
-                        const vList = document.getElementById('variants-list');
-                        if (vList) vList.innerHTML = '';
-                        productOptions.forEach(opt => {
-                            const useMain = (opt.use_main_image == 1 || opt.use_main_image === true || !opt.image);
-                            window.addVariantRow(opt.name, opt.quantity_type, opt.quantity, opt.image, useMain, opt.custom_price);
-                        });
-                    }
+        if (p.image) {
+            const mainLabel = document.getElementById('main-img-label');
+            if (mainLabel) mainLabel.style.display = 'none';
+            const previewBox = document.getElementById('main-img-preview-box');
+            if (previewBox) previewBox.style.display = 'block';
+            const previewImg = document.getElementById('main-img-preview');
+            if (previewImg) previewImg.src = p.image;
+            const existImg = document.getElementById('existing_image');
+            if (existImg) existImg.value = p.image;
+        } else {
+            const mainLabel = document.getElementById('main-img-label');
+            if (mainLabel) mainLabel.style.display = 'flex';
+            const previewBox = document.getElementById('main-img-preview-box');
+            if (previewBox) previewBox.style.display = 'none';
+            const existImg = document.getElementById('existing_image');
+            if (existImg) existImg.value = '';
+        }
 
-                    setTimeout(() => {
-                        window.originalProductData = window.captureCurrentFormData();
-                        const btnSave = document.getElementById('btn-save');
-                        if (btnSave) {
-                            btnSave.disabled = true;
-                            btnSave.style.opacity = "0.5";
-                        }
-                        window.isProductFormDirty = false;
-                    }, 500);
-                }, 150);
+        let productOptions = p.options;
+        if (typeof productOptions === 'string') {
+            try { productOptions = JSON.parse(productOptions); } catch (e) { productOptions = []; }
+        }
+        if (!Array.isArray(productOptions)) productOptions = [];
+
+        if (productOptions.length === 0) {
+            const hasVar = document.getElementById('has-variants-cb');
+            if (hasVar) hasVar.checked = false;
+            window.toggleVariantsBuilder();
+            const pQty = document.getElementById('p-qty');
+            if (pQty) pQty.value = p.quantity || 1;
+        } else {
+            const hasVar = document.getElementById('has-variants-cb');
+            if (hasVar) hasVar.checked = true;
+            window.toggleVariantsBuilder();
+            const vList = document.getElementById('variants-list');
+            if (vList) vList.innerHTML = '';
+            productOptions.forEach(opt => {
+                const useMain = (opt.use_main_image == 1 || opt.use_main_image === true || !opt.image);
+                window.addVariantRow(opt.name, opt.quantity_type, opt.quantity, opt.image, useMain, opt.custom_price);
+            });
+        }
+
+        requestAnimationFrame(() => {
+            window.originalProductData = window.captureCurrentFormData();
+            const btnSave = document.getElementById('btn-save');
+            if (btnSave) {
+                btnSave.disabled = true;
+                btnSave.style.opacity = "0.5";
+                btnSave.style.cursor = "not-allowed";
+                btnSave.innerHTML = '<i class="fas fa-save"></i> <span>حفظ التعديلات</span>';
             }
+            window.isProductFormDirty = false;
+            if (typeof window.finishTabProgress === 'function') window.finishTabProgress();
         });
     };
 
@@ -675,11 +704,21 @@
             const overlay = document.getElementById('publish-lock-overlay');
             const progress = document.getElementById('publish-progress');
             const title = document.getElementById('publish-lock-text');
+            const subtext = document.getElementById('publish-lock-subtext');
             const icon = document.getElementById('publish-icon');
+            const btnSave = document.getElementById('btn-save');
 
+            if (btnSave) {
+                btnSave.disabled = true;
+                btnSave.style.opacity = '0.7';
+                btnSave.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> <span>جاري المعالجة...</span>';
+            }
+
+            if (icon) icon.innerHTML = '<div class="publish-spinner"></div>';
             if (overlay) overlay.classList.add('active');
-            if (progress) progress.style.width = '20%';
-            if (title) title.innerText = 'جاري ضغط البيانات...';
+            if (progress) progress.style.width = '25%';
+            if (title) title.innerText = 'جاري ضغط وتجهيز البيانات...';
+            if (subtext) subtext.innerText = 'الرجاء الانتظار لحظات';
 
             try {
                 const formElement = document.getElementById('p-form');
@@ -715,8 +754,8 @@
                     f.set('quantity_type', variantData.isUnlimited ? 'unlimited' : 'tracked');
                 }
 
-                if (progress) progress.style.width = '50%';
-                if (title) title.innerText = 'جاري معالجة الصور والنشر...';
+                if (progress) progress.style.width = '55%';
+                if (title) title.innerText = 'جاري معالجة الصور بجودة فائقة...';
 
                 const fileInput = document.getElementById('img-upload-file');
                 if (fileInput && fileInput.files.length > 0) {
@@ -724,7 +763,7 @@
                     f.set('image_file', webpBlob, 'product.webp');
                 }
 
-                if (progress) progress.style.width = '80%';
+                if (progress) progress.style.width = '85%';
                 if (title) title.innerText = 'يتم الآن التحديث في المتجر...';
 
                 const res = await window.apiReq('save_product', f, 'POST', true);
@@ -733,14 +772,15 @@
                     window.isProductFormDirty = false;
                     if (progress) progress.style.width = '100%';
                     if (title) title.innerText = 'تم المعالجة بنجاح! 🎉';
+                    if (subtext) subtext.innerText = 'تم التحديث الفوري في المتجر';
                     if (icon) {
-                        icon.innerHTML = '<i class="fas fa-check-circle" style="font-size: 3.5rem; color: var(--success); margin-bottom: 12px;"></i>';
+                        icon.innerHTML = '<i class="fas fa-check-circle publish-success-icon"></i>';
                     }
 
                     setTimeout(async () => {
                         if (overlay) overlay.classList.remove('active');
                         window.executeShowProductList();
-                        window.showT('تم الحفظ والنشر بنجاح ✅', 'success');
+                        window.showT(isEdit ? 'تم تحديث بيانات المنتج بنجاح ✅' : 'تم حفظ ونشر المنتج بنجاح ✅', 'success');
 
                         const catSelect = document.getElementById('single-category-select');
                         const catId = catSelect ? catSelect.value : '';
@@ -771,7 +811,8 @@
 
                         window.isSavingProductLock = false;
                         window.unlockScreenCompletely();
-                    }, 1400);
+                        if (icon) icon.innerHTML = '<div class="publish-spinner"></div>';
+                    }, 650);
 
                 } else {
                     throw new Error(res.message || 'فشل حفظ المنتج.');
@@ -779,22 +820,18 @@
             } catch (error) {
                 window.showT(error.message, 'error');
                 if (overlay) overlay.classList.remove('active');
+                if (btnSave) {
+                    btnSave.disabled = false;
+                    btnSave.style.opacity = '1';
+                    btnSave.innerHTML = isEdit ? '<i class="fas fa-save"></i> <span>حفظ التعديلات</span>' : '<i class="fas fa-cloud-upload-alt"></i> <span>حفظ ونشر المنتج</span>';
+                }
+                if (icon) icon.innerHTML = '<div class="publish-spinner"></div>';
                 window.isSavingProductLock = false;
                 window.unlockScreenCompletely();
             }
         };
 
-        if (isEdit) {
-            window.showSmartConfirm({
-                onConfirm: executeSave,
-                title: 'حفظ التعديلات',
-                msg: 'هل أنت متأكد من حفظ التعديلات على هذا المنتج؟',
-                icon: 'fa-save',
-                type: 'info'
-            });
-        } else {
-            executeSave();
-        }
+        executeSave();
     };
 
     // ربط مستمعي النموذج
