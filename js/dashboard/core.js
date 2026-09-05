@@ -812,22 +812,6 @@
         try {
             sessionStorage.setItem('merchant_session_started', 'true');
 
-            // الاتصال اللحظي هو أول خطوة؛ لا نكشف اللوحة قبل التحقق منه.
-            if (window.ilsUpdate) window.ilsUpdate(10, 'التحقق من الاتصال اللحظي...');
-            let realtimeReady = false;
-            try {
-                realtimeReady = await window.connectDashboardSocket();
-            } catch (error) {
-                console.warn('تعذر بدء الاتصال اللحظي:', error);
-            }
-            window.dashboardConnectionChecked = true;
-            if (window.ilsUpdate) {
-                window.ilsUpdate(
-                    realtimeReady ? 100 : 60,
-                    realtimeReady ? 'تم تأمين الاتصال، جاري فتح اللوحة...' : 'تعذر الاتصال اللحظي، سيتم العمل من الكاش المحلي'
-                );
-            }
-
             const cachedProducts = localStorage.getItem('merchant_products_cache');
             const cachedSettings = localStorage.getItem('merchant_settings_cache');
             const cachedActiveOrders = localStorage.getItem('merchant_active_orders_cache');
@@ -855,6 +839,7 @@
                     const parsedProducts = JSON.parse(cachedProducts);
                     if (parsedProducts && parsedProducts.length > 0) {
                         window.AppStore.setProducts(parsedProducts);
+                        window.dashboardReadState.products = true;
                         shownFromCache = true;
                     }
                 } catch (e) {
@@ -862,11 +847,33 @@
                 }
             }
             try {
-                if (cachedActiveOrders) window.AppStore.setOrders('active', JSON.parse(cachedActiveOrders));
-                if (cachedArchivedOrders) window.AppStore.setOrders('archived', JSON.parse(cachedArchivedOrders));
+                if (cachedActiveOrders) {
+                    window.AppStore.setOrders('active', JSON.parse(cachedActiveOrders));
+                    window.dashboardReadState.activeOrders = true;
+                }
+                if (cachedArchivedOrders) {
+                    window.AppStore.setOrders('archived', JSON.parse(cachedArchivedOrders));
+                    window.dashboardReadState.archivedOrders = true;
+                }
             } catch (e) {
                 localStorage.removeItem('merchant_active_orders_cache');
                 localStorage.removeItem('merchant_archived_orders_cache');
+            }
+
+            // الكاش أولاً لتظهر اللوحة فوراً، ثم اتصال WebSocket واحد للتحديثات.
+            if (window.ilsUpdate) window.ilsUpdate(10, 'التحقق من الاتصال اللحظي...');
+            let realtimeReady = false;
+            try {
+                realtimeReady = await window.connectDashboardSocket();
+            } catch (error) {
+                console.warn('تعذر بدء الاتصال اللحظي:', error);
+            }
+            window.dashboardConnectionChecked = true;
+            if (window.ilsUpdate) {
+                window.ilsUpdate(
+                    realtimeReady ? 100 : 60,
+                    realtimeReady ? 'تم تأمين الاتصال، جاري فتح اللوحة...' : 'تعذر الاتصال اللحظي، سيتم العمل من الكاش المحلي'
+                );
             }
 
             window.hideInitialLoadingScreen();
