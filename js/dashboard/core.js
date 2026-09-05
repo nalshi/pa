@@ -59,6 +59,7 @@
     window.dashboardSocketStatus = 'idle';
     window.dashboardSocketLastError = '';
     window.dashboardSocketPaused = false;
+    window.dashboardConnectionChecked = false;
     window.dashboardSectionsInitialized = {};
     window.dashboardReadPromises = {};
 
@@ -785,6 +786,22 @@
         try {
             sessionStorage.setItem('merchant_session_started', 'true');
 
+            // الاتصال اللحظي هو أول خطوة؛ لا نكشف اللوحة قبل التحقق منه.
+            if (window.ilsUpdate) window.ilsUpdate(10, 'التحقق من الاتصال اللحظي...');
+            let realtimeReady = false;
+            try {
+                realtimeReady = await window.connectDashboardSocket();
+            } catch (error) {
+                console.warn('تعذر بدء الاتصال اللحظي:', error);
+            }
+            window.dashboardConnectionChecked = true;
+            if (window.ilsUpdate) {
+                window.ilsUpdate(
+                    realtimeReady ? 100 : 60,
+                    realtimeReady ? 'تم تأمين الاتصال، جاري فتح اللوحة...' : 'تعذر الاتصال اللحظي، سيتم العمل من الكاش المحلي'
+                );
+            }
+
             const cachedProducts = localStorage.getItem('merchant_products_cache');
             const cachedSettings = localStorage.getItem('merchant_settings_cache');
             const cachedActiveOrders = localStorage.getItem('merchant_active_orders_cache');
@@ -827,11 +844,6 @@
             }
 
             window.hideInitialLoadingScreen();
-
-            // لا نؤخر رسم اللوحة بسبب الاتصال اللحظي؛ يعاد الاتصال في الخلفية.
-            window.connectDashboardSocket().catch(error => {
-                console.warn('تعذر الاتصال اللحظي، ستستمر اللوحة بالتحميل:', error);
-            });
 
             // تحميل وعرض تبويب الرئيسية فوراً وبسرعة فائقة
             await window.ModuleLoader.load('dashboard-tab');
