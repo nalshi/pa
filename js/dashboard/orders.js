@@ -7,6 +7,7 @@
 
     let currentOrdersLimit = 25;
     let renderedOrdersState = null;
+    let ordersSearchTerm = '';
     window.currentViewingOrderId = null;
 
     // ===== حقن واجهة قسم الطلبات والنافذة الموحدة ديناميكياً =====
@@ -18,22 +19,38 @@
             const html = `
             <div class="card-4d" style="padding: 20px;">
                 <div class="card-header" style="font-size: 1.25rem;"><i class="fas fa-shopping-basket"></i> إدارة الطلبات والتوصيل</div>
-                <div class="segment-group" style="max-width:320px; margin-bottom:16px;">
+                <div class="orders-toolbar">
+                    <div class="orders-search">
+                        <i class="fas fa-search"></i>
+                        <input id="orders-search-input" type="search" placeholder="ابحث برقم الطلب أو اسم العميل أو الهاتف..." autocomplete="off">
+                    </div>
+                    <div class="segment-group orders-filter">
                     <button class="segment-btn active" onclick="loadOrders('active', this)">النشطة</button>
                     <button class="segment-btn" onclick="loadOrders('archived', this)">السابقة</button>
+                    </div>
                 </div>
                 <div id="orders-container" class="orders-list-compact">
                     <div style="text-align: center; padding: 40px;"><i class="fas fa-spinner fa-spin" style="font-size: 2rem; color: var(--primary);"></i></div>
                 </div>
             </div>`;
             ordersSec.innerHTML = html;
+            const searchInput = document.getElementById('orders-search-input');
+            if (searchInput) {
+                searchInput.addEventListener('input', (event) => {
+                    ordersSearchTerm = event.target.value.trim().toLowerCase();
+                    currentOrdersLimit = 25;
+                    renderedOrdersState = null;
+                    const activeFilter = window._lastOrdersFilter || 'active';
+                    window.renderOrdersUI(window.AppStore.getOrders(activeFilter), activeFilter);
+                });
+            }
         }
 
         // حقن نافذة كرت تفاصيل الطلب الموحدة مرة واحدة فقط في الـ DOM
         if (!document.getElementById('single-order-detail-modal')) {
             const modalHtml = `
             <div class="modal" id="single-order-detail-modal">
-                <div class="modal-content" style="max-width: 520px; padding: 20px;">
+                <div class="modal-content order-detail-modal-content">
                     <div class="modal-title-bar" style="margin-bottom: 14px;">
                         <h3 id="m-detail-order-title"><i class="fas fa-receipt text-primary"></i> تفاصيل الطلب</h3>
                         <button class="close-btn" onclick="closeM('single-order-detail-modal')"><i class="fas fa-times"></i></button>
@@ -181,10 +198,31 @@
             return;
         }
 
-        const dataToShow = data.slice(0, currentOrdersLimit);
+        const filteredData = ordersSearchTerm
+            ? data.filter(order => {
+                const haystack = [
+                    order.id,
+                    order.customer_name,
+                    order.customer_phone,
+                    order.delivery_address_text
+                ].map(value => String(value || '').toLowerCase()).join(' ');
+                return haystack.includes(ordersSearchTerm);
+            })
+            : data;
+        const dataToShow = filteredData.slice(0, currentOrdersLimit);
+        if (filteredData.length === 0) {
+            renderedOrdersState = null;
+            container.innerHTML = `
+                <div class="orders-empty-state">
+                    <i class="fas fa-search"></i>
+                    <h3>لا توجد نتائج مطابقة</h3>
+                    <p>جرّب رقم طلب أو اسم عميل مختلف.</p>
+                </div>`;
+            return;
+        }
 
         const ids = dataToShow.map(order => `${String(order.id)}:${String(order.status || '')}:${String(order.updated_at || '')}`);
-        const stateKey = `${filterType}:${ids.join(',')}`;
+        const stateKey = `${filterType}:${ordersSearchTerm}:${ids.join(',')}`;
         const previous = renderedOrdersState;
         if (previous && previous.filterType === filterType
             && previous.dataIds.length < ids.length
@@ -199,7 +237,7 @@
             });
             container.appendChild(fragment);
             renderedOrdersState = { filterType, dataIds: ids, stateKey };
-            appendOrdersFooter(container, data.length, filterType);
+            appendOrdersFooter(container, filteredData.length, filterType);
             return;
         }
 
@@ -211,7 +249,7 @@
         // كتابة HTML دفعة واحدة → يحسم الجمود
         container.innerHTML = rowsHtml;
         renderedOrdersState = { filterType, dataIds: ids, stateKey };
-        appendOrdersFooter(container, data.length, filterType);
+        appendOrdersFooter(container, filteredData.length, filterType);
     };
 
     function appendOrdersFooter(container, total, filterType) {
@@ -237,7 +275,7 @@
         const cur = window.escapeHTML(o.currency || 'YER');
         const itemWord = itemsCount === 1 ? 'منتج' : 'منتجات';
 
-        return `<div class="order-card-compact" id="m-order-row-${oid}" onclick="openOrderDetail('${oid}')"><div class="order-compact-main"><div class="order-compact-icon"><i class="fas ${statusMeta.icon}"></i></div><div class="order-compact-info"><div class="order-compact-header-row"><span class="order-compact-id">#${shortId}</span><span class="order-compact-badge" style="${statusMeta.badgeStyle}">${statusMeta.text}</span></div><div class="order-compact-meta"><span><i class="fas fa-user text-primary" style="font-size:0.75rem;"></i> ${custName}</span><span>•</span><span>${itemsCount} ${itemWord}</span></div></div></div><div class="order-compact-right"><div class="order-compact-price-wrap"><span class="order-compact-price">${totalAmount} <small style="font-size:0.75rem;">${cur}</small></span><span class="order-compact-date">${dateStr}</span></div><button class="order-compact-btn-details" onclick="event.stopPropagation();openOrderDetail('${oid}')"><span>التفاصيل</span><i class="fas fa-chevron-left" style="font-size:0.7rem;"></i></button></div></div>`;
+        return `<article class="order-card-compact" id="m-order-row-${oid}" onclick="openOrderDetail('${oid}')"><div class="order-compact-main"><div class="order-compact-icon"><i class="fas ${statusMeta.icon}"></i></div><div class="order-compact-info"><div class="order-compact-header-row"><span class="order-compact-id">#${shortId}</span><span class="order-compact-badge" style="${statusMeta.badgeStyle}">${statusMeta.text}</span></div><div class="order-compact-meta"><span><i class="fas fa-user text-primary" style="font-size:0.75rem;"></i> ${custName}</span><span>•</span><span>${itemsCount} ${itemWord}</span></div></div></div><div class="order-compact-right"><div class="order-compact-price-wrap"><span class="order-compact-price">${totalAmount} <small style="font-size:0.75rem;">${cur}</small></span><span class="order-compact-date">${dateStr}</span></div><button class="order-compact-btn-details" onclick="event.stopPropagation();openOrderDetail('${oid}')"><span>عرض التفاصيل</span><i class="fas fa-arrow-left" style="font-size:0.7rem;"></i></button></div></article>`;
     }
 
     window.loadMoreOrders = function (filterType) {
@@ -321,11 +359,13 @@
             const itemQty = parseInt(i.quantity) || 1;
             productsTotalRevenue += (itemSellingPrice * itemQty);
             totalCost += (itemCost * itemQty);
-            const imgUrl = window.getValidImageUrl ? window.getValidImageUrl(i.image) : (i.image || window.PLACEHOLDER_IMG);
+            // استخدم الصورة الأصلية داخل التفاصيل؛ محول الصور الخارجي يضيف
+            // طلب شبكة وتأخيرًا لكل منتج عند فتح الطلب.
+            const imgUrl = i.image || window.PLACEHOLDER_IMG;
 
             return `
             <div style="display:flex; gap:10px; margin-bottom:10px; padding-bottom:10px; border-bottom:1px dashed var(--border-glass); align-items:center;">
-                <img width="48" height="48" loading="lazy" decoding="async" fetchpriority="low" src="${window.escapeHTML(imgUrl)}" alt="${window.escapeHTML(i.product_name || i.name || 'منتج')}" style="width:48px; height:48px; border-radius:8px; object-fit:cover; border:1px solid var(--border-glass);">
+                <img width="48" height="48" loading="lazy" decoding="async" src="${window.escapeHTML(imgUrl)}" alt="${window.escapeHTML(i.product_name || i.name || 'منتج')}" style="width:48px; height:48px; border-radius:8px; object-fit:cover; border:1px solid var(--border-glass);">
                 <div style="flex:1; min-width:0;">
                     <div style="font-weight:900; font-size:0.92rem; color:var(--text-main); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${window.escapeHTML(i.product_name || i.name || 'منتج')}</div>
                     <div style="display:flex; justify-content:space-between; font-size:0.82rem; margin-top:3px;">
