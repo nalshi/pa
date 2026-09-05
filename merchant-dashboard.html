@@ -8,17 +8,30 @@
     <link rel="manifest" href="/manifest.json">
     <meta name="theme-color" content="#2563eb">
     <link rel="apple-touch-icon" href="favicon.svg">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 
     <!-- الأنماط الأساسية والطباعة -->
     <link rel="stylesheet" href="/css/cssd/dashboard-base.css">
     <link rel="stylesheet" href="/css/cssd/dashboard-print.css" media="print">
 
     <!-- الخطوط والأيقونات -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" crossorigin="anonymous" referrerpolicy="no-referrer">
+    <link rel="stylesheet" href="/css/all.min.css">
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800;900&family=Outfit:wght@700;800;900&display=swap" rel="stylesheet">
 </head>
 <body>
 <script>try{if(localStorage.getItem('mThm')==='dark')document.body.classList.add('dark-mode');}catch(e){}</script>
+<script>
+    (function () {
+        const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+        const lowPerformance = Boolean(
+            window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+        ) || Boolean(connection && connection.saveData)
+          || (navigator.deviceMemory && navigator.deviceMemory <= 2)
+          || (navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 2);
+        if (lowPerformance) document.documentElement.classList.add('low-performance');
+    })();
+</script>
 
 <!-- تنبيه الطلب الجديد العائم -->
 <div id="new-order-alert" class="new-order-alert">
@@ -110,6 +123,11 @@
         <header class="topbar">
             <h1 class="page-title" id="page-title">الرئيسية</h1>
             <div class="topbar-actions">
+                <div id="dashboard-connection-status" title="حالة الاتصال اللحظي"
+                     style="display:flex; align-items:center; gap:6px; font-size:0.72rem; font-weight:800; color:var(--text-muted); margin-left:8px;">
+                    <span style="width:9px; height:9px; border-radius:50%; background:#94a3b8;"></span>
+                    <span>جاري التحقق...</span>
+                </div>
                 <button class="action-icon" onclick="toggleTheme()" title="تغيير المظهر"><i class="fas fa-moon" id="theme-icon"></i></button>
                 <div style="position:relative;">
                     <button id="notification-bell" class="action-icon" onclick="toggleNotificationPanel()" title="سجل النشاطات">
@@ -153,7 +171,6 @@
 <script src="/js/dashboard/core.js"></script>
 <script src="/js/dashboard/ui.js"></script>
 <script src="/js/dashboard/notifications.js"></script>
-<script src="/js/dashboard/settings.js"></script>
 <script>
     function bootApp() {
         if (typeof initTheme === 'function') initTheme();
