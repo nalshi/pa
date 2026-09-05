@@ -1002,6 +1002,74 @@ input:checked + .slider:before { transform: translateX(20px); }
 .btn-outline { background: transparent; border: 2px solid var(--primary); color: var(--primary); padding: 8px 16px; border-radius: var(--radius-md); font-weight: 800; cursor: pointer; transition: 0.25s; display: flex; align-items: center; gap: 6px; font-size: 0.88rem; }
 .btn-outline:hover { background: var(--primary); color: white; }
 
+/* ===== واجهة الطلبات الحديثة والبحث المحلي ===== */
+.orders-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 16px;
+}
+.orders-search {
+    position: relative;
+    flex: 1;
+    min-width: 220px;
+}
+.orders-search i {
+    position: absolute;
+    right: 13px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-muted);
+    pointer-events: none;
+}
+.orders-search input {
+    width: 100%;
+    min-height: 42px;
+    padding: 9px 38px 9px 12px;
+    border: 1px solid var(--border-glass);
+    border-radius: 12px;
+    background: var(--bg-body);
+    color: var(--text-main);
+    font: inherit;
+    font-size: 0.82rem;
+    font-weight: 700;
+}
+.orders-search input:focus {
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px var(--primary-glow);
+}
+.orders-filter {
+    margin: 0;
+    max-width: 250px;
+    flex-shrink: 0;
+}
+.orders-empty-state {
+    text-align: center;
+    padding: 48px 20px;
+    color: var(--text-muted);
+    border: 1px dashed var(--border-glass);
+    border-radius: 16px;
+    background: var(--bg-body);
+}
+.orders-empty-state i {
+    display: block;
+    margin-bottom: 10px;
+    font-size: 1.8rem;
+    opacity: 0.5;
+}
+.orders-empty-state h3 { color: var(--text-main); font-size: 1rem; margin-bottom: 4px; }
+.orders-empty-state p { font-size: 0.8rem; font-weight: 700; }
+.order-detail-modal-content {
+    max-width: 560px;
+    padding: 18px;
+    max-height: min(760px, 92vh);
+    contain: content;
+}
+.order-detail-modal-content #single-order-detail-body {
+    content-visibility: auto;
+    contain: layout style paint;
+}
+
 /* ===== بطاقات الطلبات الذكية فائقة السرعة والخفيفة (Ultra-Fast Orders) ===== */
 .orders-list-compact {
     display: flex;
@@ -1140,6 +1208,9 @@ input:checked + .slider:before { transform: translateX(20px); }
 }
 
 @media (max-width: 600px) {
+    .orders-toolbar { align-items: stretch; flex-direction: column; }
+    .orders-search { min-width: 0; }
+    .orders-filter { max-width: none; width: 100%; }
     .order-card-compact {
         flex-direction: column;
         align-items: stretch;
