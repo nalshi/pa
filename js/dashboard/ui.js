@@ -335,16 +335,23 @@
             if (typeof window.ensureProductsHTML === 'function') window.ensureProductsHTML();
             if (typeof window.showProductList === 'function') window.showProductList();
             const searchInput = document.getElementById('search-p');
-            if (searchInput) searchInput.value = '';
-            window.currentSearchTerm = '';
+            // احتفظ بالبحث وبشبكة المنتجات عند العودة للتبويب حتى لا تعاد
+            // عناصر الصور وطلبات الشبكة من الصفر.
+            if (searchInput && typeof window.currentSearchTerm === 'string') {
+                searchInput.value = window.currentSearchTerm;
+            }
 
             const allProducts = window.AppStore.getProducts();
             if (allProducts && allProducts.length > 0) {
-                // عرض المنتجات فوراً بالتدريج من الذاكرة المحلية
-                if (typeof window.renderProductsInitial === 'function') {
+                const grid = document.getElementById('p-grid');
+                const hasRenderedProducts = Boolean(grid && grid.querySelector('.product-card'));
+                // أعد الرسم فقط عند أول دخول أو بعد إزالة الشبكة فعلياً.
+                if (!hasRenderedProducts && typeof window.renderProductsInitial === 'function') {
                     window.renderProductsInitial();
-                } else if (typeof window.renderProductsGrid === 'function') {
+                } else if (!hasRenderedProducts && typeof window.renderProductsGrid === 'function') {
                     window.renderProductsGrid(allProducts.slice(0, 12), false);
+                } else if (window.hasMoreProducts && typeof window.setupProductObserver === 'function') {
+                    window.setupProductObserver();
                 }
             } else {
                 // لا يوجد كاش — أظهر مؤشر تحميل وجلب من الخادم
