@@ -591,12 +591,15 @@
         el.title = detail || current[1];
     };
 
+    window.dashboardSharedWorker = null;
+    window.dashboardSharedWorkerPort = null;
+    window.dashboardSharedWorkerActive = false;
+
     window.isDashboardRealtimeReady = function () {
         return Boolean(
             window.dashboardSocketReady &&
             window.dashboardSnapshotLoaded &&
-            window.dashboardSocket &&
-            window.dashboardSocket.readyState === WebSocket.OPEN
+            (window.dashboardSharedWorkerActive || (window.dashboardSocket && window.dashboardSocket.readyState === WebSocket.OPEN))
         );
     };
 
@@ -607,17 +610,195 @@
         return Boolean(connected && window.isDashboardRealtimeReady());
     };
 
-    // اتصال واحد آمن لكل جلسة؛ القراءة اللاحقة للأقسام تتم من اللقطة المحلية.
+    window.processDashboardSnapshot = function (message) {
+        if (!message || typeof message !== 'object') return;
+        window.setDashboardSocketStatus('connected');
+        if (typeof window.ilsConnectionState === 'function') {
+            window.ilsConnectionState('success', 'تم تجهيز الاتصال والبيانات');
+        }
+        window.dashboardSnapshotLoaded = true;
+        window.dashboardSocketReady = true;
+
+        if (Array.isArray(message.products)) {
+            window.AppStore.setProducts(message.products);
+            window.dashboardReadState.products = true;
+        }
+        if (Array.isArray(message.orders)) {
+            window.AppStore.setOrders('active', message.orders);
+            window.dashboardReadState.activeOrders = true;
+        }
+        if (Array.isArray(message.archivedOrders)) {
+            window.AppStore.setOrders('archived', message.archivedOrders);
+            window.dashboardReadState.archivedOrders = true;
+        }
+        if (Array.isArray(message.categories)) window.flatCategoriesList = message.categories;
+        if (message.settings && typeof message.settings === 'object') {
+            window.dashboardReadState.settings = true;
+            window.currentMerchantData = message.settings;
+            localStorage.setItem('merchant_settings_cache', JSON.stringify(message.settings));
+            localStorage.setItem('merchant_settings_cache_ts', Date.now().toString());
+            if (typeof window.applySettingsToUI === 'function') window.applySettingsToUI(message.settings);
+        }
+        if (Array.isArray(message.salesLog) && typeof window.computeStatsByCurrency === 'function') {
+            window.dashboardReadState.stats = true;
+            const stats = window.computeStatsByCurrency(message.salesLog);
+            stats.weekly = typeof window.computeWeeklyActivity === 'function'
+                ? window.computeWeeklyActivity(message.salesLog) : null;
+            localStorage.setItem('merchant_dashboard_stats_v2', JSON.stringify(stats));
+            if (typeof window.renderCurrencyStats === 'function') window.renderCurrencyStats(stats.byCurrency);
+            if (typeof window.renderTopSellersList === 'function') window.renderTopSellersList({ labels: stats.topProducts, data: stats.topCounts });
+            if (typeof window.renderWeeklyActivityBar === 'function') window.renderWeeklyActivityBar(stats.weekly);
+        }
+
+        if (typeof window.tryRevealApp === 'function') window.tryRevealApp();
+    };
+
+    window.processDashboardEvent = function (message) {
+        if (!message || !message.event) return;
+        if (message.event === 'product_updated' && message.product) {
+            window.AppStore.updateProduct(message.product);
+        } else if (message.event === 'product_removed' && message.product_id) {
+            window.AppStore.removeProduct(message.product_id);
+        } else if (message.event === 'order_updated' && message.order) {
+            const wasKnown = window.AppStore.getOrders('active').some(order => String(order.id) === String(message.order.id));
+            const current = window.AppStore.getOrders('active');
+            const next = current.filter(order => String(order.id) !== String(message.order.id));
+            if (message.order.status !== 'completed' && message.order.status !== 'cancelled') {
+                next.push(message.order);
+            }
+            window.AppStore.setOrders('active', next);
+            if (!wasKnown && message.order.status === 'pending_merchant_approval') {
+                const ordersSection = document.getElementById('orders');
+                const isOrdersTabOpen = Boolean(ordersSection && ordersSection.classList.contains('active'));
+                if (isOrdersTabOpen) {
+                    window.dismissOrderAlerts?.();
+                }
+                if (typeof window.addNotification === 'function') {
+                    window.addNotification('fa-bell', 'وصل طلب جديد من ' + (message.order.customer_name || 'عميل'), 'warning');
+                }
+                const alert = document.getElementById('new-order-alert');
+                if (alert && !isOrdersTabOpen) alert.classList.add('show');
+                if (!isOrdersTabOpen && window.orderAudio && window.currentMerchantData?.settings?.push_notifications !== false) {
+                    window.orderAudio.loop = true;
+                    window.orderAudio.currentTime = 0;
+                    window.orderAudio.play().catch(() => {});
+                }
+                window.initialOrdersLoaded = true;
+            }
+            if (typeof window.renderOrdersUI === 'function' && document.getElementById('orders-container')) {
+                window.renderOrdersUI(next, 'active');
+            }
+        } else if (message.event === 'settings_updated' && message.settings) {
+            window.currentMerchantData = message.settings;
+            localStorage.setItem('merchant_settings_cache', JSON.stringify(message.settings));
+            localStorage.setItem('merchant_settings_cache_ts', Date.now().toString());
+            if (typeof window.applySettingsToUI === 'function') window.applySettingsToUI(message.settings);
+        } else if (message.event === 'merchant_message' && message.message) {
+            const incoming = message.message;
+            if (typeof window.addNotification === 'function') {
+                window.addNotification(
+                    'fa-whatsapp',
+                    `رسالة واتساب من ${incoming.customer_name || 'عميل'}: ${incoming.text || ''}`,
+                    'info'
+                );
+            }
+            window.dispatchEvent(new CustomEvent('merchant-message', { detail: incoming }));
+        }
+    };
+
+    // اتصال واحد آمن لكل جلسة؛ مع دعم SharedWorker لمنع الانقطاع عند تحديث الصفحة
     window.connectDashboardSocket = function () {
         const token = localStorage.getItem('merchant_token') || sessionStorage.getItem('merchant_token') || window.merchantToken;
         const merchantId = window.merchantUserId;
-        if (!token || !merchantId || !window.WebSocket) {
+        if (!token || !merchantId) {
             if (typeof window.ilsConnectionState === 'function') {
                 window.ilsConnectionState('error', 'بيانات الاتصال غير متوفرة');
             }
-            window.setDashboardSocketStatus('disconnected', 'بيانات الدخول أو WebSocket غير متوفر');
+            window.setDashboardSocketStatus('disconnected', 'بيانات الدخول غير متوفرة');
             return Promise.resolve(false);
         }
+
+        if (window.isDashboardRealtimeReady()) {
+            return Promise.resolve(true);
+        }
+
+        const scheme = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const socketUrl = `${scheme}//${window.location.host}/api/worker/ws?merchant_id=${encodeURIComponent(merchantId)}&token=${encodeURIComponent(token)}`;
+
+        // 🌟 1. المسار الفائق: SharedWorker للاستمرار عبر التحديثات والتبويبات
+        if (typeof window.SharedWorker === 'function' && !window.dashboardSocketForceDirect) {
+            try {
+                if (!window.dashboardSharedWorker) {
+                    window.dashboardSharedWorker = new SharedWorker('/js/dashboard/realtime-worker.js', { name: 'nalsh-merchant-realtime' });
+                    const port = window.dashboardSharedWorker.port;
+                    window.dashboardSharedWorkerPort = port;
+
+                    window.dashboardDataReady = new Promise((resolve) => {
+                        let settled = false;
+                        const finish = (val) => {
+                            if (!settled) {
+                                settled = true;
+                                clearTimeout(workerTimeout);
+                                resolve(val);
+                            }
+                        };
+                        const workerTimeout = setTimeout(() => {
+                            finish(window.isDashboardRealtimeReady());
+                        }, 12000);
+
+                        port.onmessage = function (event) {
+                            let msg = event.data;
+                            if (typeof msg === 'string') {
+                                try { msg = JSON.parse(msg); } catch (_) { return; }
+                            }
+                            if (!msg || typeof msg !== 'object') return;
+
+                            if (msg.type === 'status') {
+                                window.setDashboardSocketStatus(msg.status, msg.detail || '');
+                                if (msg.status === 'connected') {
+                                    window.dashboardSocketReady = true;
+                                    window.dashboardSharedWorkerActive = true;
+                                    if (window.dashboardSnapshotLoaded) finish(true);
+                                } else if (msg.status === 'disconnected') {
+                                    window.dashboardSocketReady = false;
+                                }
+                            } else if (msg.type === 'snapshot') {
+                                window.dashboardSharedWorkerActive = true;
+                                window.processDashboardSnapshot(msg.data);
+                                finish(true);
+                            } else if (msg.type === 'event') {
+                                window.processDashboardEvent(msg.data);
+                            } else if (msg.type === 'error') {
+                                window.setDashboardSocketStatus('disconnected', msg.message || 'خطأ في الاتصال اللحظي');
+                                finish(false);
+                            }
+                        };
+
+                        port.start();
+                        port.postMessage({
+                            action: 'init',
+                            socketUrl,
+                            merchantId,
+                            token
+                        });
+                    });
+                } else if (window.dashboardSharedWorkerPort) {
+                    window.dashboardSharedWorkerPort.postMessage({
+                        action: 'init',
+                        socketUrl,
+                        merchantId,
+                        token
+                    });
+                }
+                return window.dashboardDataReady;
+            } catch (workerErr) {
+                console.warn('تراجع للاتصال المباشر:', workerErr);
+                window.dashboardSharedWorker = null;
+                window.dashboardSharedWorkerPort = null;
+            }
+        }
+
+        // 🌟 2. المسار الاحتياطي: اتصال WebSocket مباشر
         if (window.dashboardSocket && [WebSocket.OPEN, WebSocket.CONNECTING].includes(window.dashboardSocket.readyState)) {
             return window.isDashboardRealtimeReady() ? Promise.resolve(true) : window.dashboardDataReady;
         }
@@ -627,14 +808,12 @@
             window.dashboardSocketReconnectTimer = null;
         }
         window.dashboardSocketReady = false;
-        window.dashboardSnapshotLoaded = false;
         window.setDashboardSocketStatus('connecting');
         if (typeof window.ilsConnectionState === 'function') {
             window.ilsConnectionState('', 'جاري إنشاء اتصال آمن...');
         }
+
         window.dashboardDataReady = new Promise((resolve) => {
-            const scheme = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-            const socketUrl = `${scheme}//${window.location.host}/api/worker/ws?merchant_id=${encodeURIComponent(merchantId)}&token=${encodeURIComponent(token)}`;
             const socket = new WebSocket(socketUrl);
             let settled = false;
             const handshakeTimer = setTimeout(() => {
@@ -645,10 +824,10 @@
                     window.setDashboardSocketStatus('disconnected', 'انتهت مهلة الاتصال');
                     finish(false);
                     if (socket.readyState === WebSocket.CONNECTING || socket.readyState === WebSocket.OPEN) {
-                        socket.close(1011, 'لم تصل اللقطة الأولية');
+                        socket.close(1011, 'تجاوز مهلة اللقطة');
                     }
                 }
-            }, 4000);
+            }, 12000);
             const finish = (value) => {
                 if (!settled) {
                     settled = true;
@@ -663,116 +842,40 @@
                     socket.close(1000, 'اتصال قديم');
                     return;
                 }
-                window.setDashboardSocketStatus('connecting', 'تم فتح القناة، بانتظار بيانات D1');
+                window.setDashboardSocketStatus('connecting', 'تم فتح القناة، بانتظار البيانات...');
                 window.dashboardSocketReady = true;
                 window.dashboardSocketReconnectAttempt = 0;
                 socket.send(JSON.stringify({ type: 'ping' }));
                 if (window.dashboardSocketPingTimer) clearInterval(window.dashboardSocketPingTimer);
                 window.dashboardSocketPingTimer = setInterval(() => {
                     if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify({ type: 'ping' }));
-                }, 25000);
+                }, 20000);
             });
+
             socket.addEventListener('message', (event) => {
                 let message;
                 try { message = JSON.parse(event.data); } catch (e) { return; }
+                if (message.type === 'pong') return;
                 if (message.event === 'initial_load') {
-                    window.setDashboardSocketStatus('connected');
-                    if (typeof window.ilsConnectionState === 'function') {
-                        window.ilsConnectionState('success', 'تم تجهيز الاتصال والبيانات');
-                    }
-                    window.dashboardSnapshotLoaded = true;
-                    if (Array.isArray(message.products)) window.AppStore.setProducts(message.products);
-                    if (Array.isArray(message.products)) window.dashboardReadState.products = true;
-                    if (Array.isArray(message.orders)) {
-                        window.AppStore.setOrders('active', message.orders);
-                        window.dashboardReadState.activeOrders = true;
-                    }
-                    if (Array.isArray(message.archivedOrders)) {
-                        window.AppStore.setOrders('archived', message.archivedOrders);
-                        window.dashboardReadState.archivedOrders = true;
-                    }
-                    if (Array.isArray(message.categories)) window.flatCategoriesList = message.categories;
-                    if (message.settings && typeof message.settings === 'object') {
-                        window.dashboardReadState.settings = true;
-                        window.currentMerchantData = message.settings;
-                        localStorage.setItem('merchant_settings_cache', JSON.stringify(message.settings));
-                        localStorage.setItem('merchant_settings_cache_ts', Date.now().toString());
-                        if (typeof window.applySettingsToUI === 'function') window.applySettingsToUI(message.settings);
-                    }
-                    if (Array.isArray(message.salesLog) && typeof window.computeStatsByCurrency === 'function') {
-                        window.dashboardReadState.stats = true;
-                        const stats = window.computeStatsByCurrency(message.salesLog);
-                        stats.weekly = typeof window.computeWeeklyActivity === 'function'
-                            ? window.computeWeeklyActivity(message.salesLog) : null;
-                        localStorage.setItem('merchant_dashboard_stats_v2', JSON.stringify(stats));
-                        if (typeof window.renderCurrencyStats === 'function') window.renderCurrencyStats(stats.byCurrency);
-                        if (typeof window.renderTopSellersList === 'function') window.renderTopSellersList({ labels: stats.topProducts, data: stats.topCounts });
-                        if (typeof window.renderWeeklyActivityBar === 'function') window.renderWeeklyActivityBar(stats.weekly);
-                    }
-                    finish(window.isDashboardRealtimeReady());
+                    window.processDashboardSnapshot(message);
+                    finish(true);
                 } else if (message.event === 'error') {
                     if (typeof window.ilsConnectionState === 'function') {
                         window.ilsConnectionState('error', 'تعذر تحميل الاتصال اللحظي');
                     }
                     window.setDashboardSocketStatus('disconnected', message.message || 'فشل تحميل بيانات اللوحة');
                     finish(false);
-                    if (socket.readyState === WebSocket.OPEN) socket.close(1011, 'فشل تحميل اللقطة الأولية');
-                } else if (message.event === 'product_updated' && message.product) {
-                    window.AppStore.updateProduct(message.product);
-                } else if (message.event === 'product_removed' && message.product_id) {
-                    window.AppStore.removeProduct(message.product_id);
-                } else if (message.event === 'order_updated' && message.order) {
-                    const wasKnown = window.AppStore.getOrders('active').some(order => String(order.id) === String(message.order.id));
-                    const current = window.AppStore.getOrders('active');
-                    const next = current.filter(order => String(order.id) !== String(message.order.id));
-                    if (message.order.status !== 'completed' && message.order.status !== 'cancelled') {
-                        next.push(message.order);
-                    }
-                    window.AppStore.setOrders('active', next);
-                    if (!wasKnown && message.order.status === 'pending_merchant_approval') {
-                        const ordersSection = document.getElementById('orders');
-                        const isOrdersTabOpen = Boolean(ordersSection && ordersSection.classList.contains('active'));
-                        if (isOrdersTabOpen) {
-                            window.dismissOrderAlerts?.();
-                        }
-                        if (typeof window.addNotification === 'function') {
-                            window.addNotification('fa-bell', 'وصل طلب جديد من ' + (message.order.customer_name || 'عميل'), 'warning');
-                        }
-                        const alert = document.getElementById('new-order-alert');
-                        if (alert && !isOrdersTabOpen) alert.classList.add('show');
-                        if (!isOrdersTabOpen && window.orderAudio && window.currentMerchantData?.settings?.push_notifications !== false) {
-                            window.orderAudio.loop = true;
-                            window.orderAudio.currentTime = 0;
-                            window.orderAudio.play().catch(() => {});
-                        }
-                        window.initialOrdersLoaded = true;
-                    }
-                    // حدّث القائمة فورًا إن كانت واجهتها محمّلة، دون انتظار فتح القسم.
-                    if (typeof window.renderOrdersUI === 'function' && document.getElementById('orders-container')) {
-                        window.renderOrdersUI(next, 'active');
-                    }
-                } else if (message.event === 'settings_updated' && message.settings) {
-                    window.currentMerchantData = message.settings;
-                    localStorage.setItem('merchant_settings_cache', JSON.stringify(message.settings));
-                    localStorage.setItem('merchant_settings_cache_ts', Date.now().toString());
-                    if (typeof window.applySettingsToUI === 'function') window.applySettingsToUI(message.settings);
-                } else if (message.event === 'merchant_message' && message.message) {
-                    const incoming = message.message;
-                    if (typeof window.addNotification === 'function') {
-                        window.addNotification(
-                            'fa-whatsapp',
-                            `رسالة واتساب من ${incoming.customer_name || 'عميل'}: ${incoming.text || ''}`,
-                            'info'
-                        );
-                    }
-                    window.dispatchEvent(new CustomEvent('merchant-message', { detail: incoming }));
+                } else {
+                    window.processDashboardEvent(message);
                 }
             });
+
             socket.addEventListener('error', () => {
                 if (socket !== window.dashboardSocket) return;
                 window.setDashboardSocketStatus('disconnected', 'رفض الخادم اتصال WebSocket');
                 finish(false);
             });
+
             socket.addEventListener('close', (event) => {
                 if (socket !== window.dashboardSocket) return;
                 window.dashboardSocketReady = false;
@@ -790,10 +893,11 @@
                     window.dashboardSocketReconnectAttempt = attempt;
                     window.dashboardSocketReconnectTimer = setTimeout(() => {
                         window.connectDashboardSocket();
-                    }, Math.min(30000, 1000 * Math.pow(2, Math.min(attempt - 1, 5))));
+                    }, Math.min(25000, 1000 * Math.pow(1.8, Math.min(attempt - 1, 5))));
                 }
             });
         });
+
         return window.dashboardDataReady;
     };
     window.addEventListener('online', () => {
@@ -879,29 +983,38 @@
                 localStorage.removeItem('merchant_archived_orders_cache');
             }
 
-            // الكاش يجهز البيانات داخلياً فقط؛ لا تُفتح اللوحة قبل الاتصال اللحظي.
-            if (window.ilsUpdate) window.ilsUpdate(10, 'التحقق من الاتصال اللحظي...');
-            let realtimeReady = false;
-            while (!realtimeReady) {
-                try {
-                    realtimeReady = await realtimeConnection;
-                } catch (error) {
-                    console.warn('تعذر بدء الاتصال اللحظي:', error);
-                    realtimeReady = false;
-                }
-                realtimeReady = Boolean(realtimeReady && window.isDashboardRealtimeReady());
-                window.dashboardConnectionChecked = realtimeReady;
-                if (!realtimeReady) {
-                    if (window.ilsUpdate) window.ilsUpdate(30, 'بانتظار الاتصال اللحظي الآمن...');
-                    await new Promise(resolve => setTimeout(resolve, navigator.onLine ? 1000 : 2500));
-                    realtimeConnection = window.connectDashboardSocket();
-                }
-            }
-            if (window.ilsUpdate) {
-                window.ilsUpdate(100, 'تم تأمين الاتصال اللحظي، جاري فتح اللوحة...');
-            }
+            const hasLocalCache = Boolean(
+                (cachedProducts && cachedProducts.length > 2) || 
+                (cachedSettings && cachedSettings.length > 2) || 
+                (cachedActiveOrders && cachedActiveOrders.length > 2)
+            );
 
-            window.hideInitialLoadingScreen();
+            if (hasLocalCache) {
+                // 🚀 عرض فوري للوحة التحكم من الكاش دون أي تأخير عند عمل Refresh أو التنقل!
+                window.dashboardConnectionChecked = true;
+                window.hideInitialLoadingScreen();
+
+                // مزامنة الاتصال اللحظي في الخلفية وتحديث البيانات عند وصول اللقطة
+                realtimeConnection.then(() => {
+                    window.dashboardConnectionChecked = true;
+                    if (typeof window.loadStoreData === 'function') {
+                        window.loadStoreData().catch(e => console.warn('تحديث الإعدادات:', e));
+                    }
+                }).catch(e => console.warn('مزامنة الاتصال اللحظي بالخلفية:', e));
+            } else {
+                // أول تسجيل دخول على هذا الجهاز (لا يوجد كاش محلي): انتظار الاتصال واللقطة
+                if (window.ilsUpdate) window.ilsUpdate(15, 'التحقق من الاتصال اللحظي...');
+                try {
+                    await Promise.race([
+                        realtimeConnection,
+                        new Promise(resolve => setTimeout(resolve, 6000))
+                    ]);
+                } catch (error) {
+                    console.warn('تعذر استكمال الاتصال اللحظي الأولي:', error);
+                }
+                window.dashboardConnectionChecked = true;
+                window.hideInitialLoadingScreen();
+            }
 
             // تحميل وعرض تبويب الرئيسية فوراً وبسرعة فائقة
             await window.ModuleLoader.load('dashboard-tab');
