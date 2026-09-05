@@ -306,6 +306,21 @@ html.low-performance .section.active,
     transform: none !important;
 }
 
+/* تحريك الانتقال السلس والعصري لصفحات المنتجات */
+.product-view-enter {
+    animation: productViewEnter 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    will-change: opacity, transform;
+}
+@keyframes productViewEnter {
+    0% { opacity: 0; transform: translateY(6px); }
+    100% { opacity: 1; transform: translateY(0); }
+}
+html.low-performance .product-view-enter,
+.low-performance .product-view-enter {
+    animation: none !important;
+    transform: none !important;
+}
+
 /* ===== هيكل التحميل العصري خفيف الوزن (Modern Skeletons) ===== */
 .section-skeleton {
     display: flex;
@@ -1142,13 +1157,59 @@ input:checked + .slider:before { transform: translateX(20px); }
 
 .publish-lock-overlay {
     position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
-    background: rgba(7, 10, 18, 0.85); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+    background: rgba(7, 10, 18, 0.82); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
     z-index: 9999999; display: none; flex-direction: column; justify-content: center; align-items: center;
-    opacity: 0; transition: opacity 0.3s ease; pointer-events: all;
+    opacity: 0; transition: opacity 0.24s cubic-bezier(0.16, 1, 0.3, 1); pointer-events: all;
 }
 .publish-lock-overlay.active { display: flex; opacity: 1; }
-.publish-spinner { width: 70px; height: 70px; border: 4px solid rgba(255,255,255,0.1); border-top-color: var(--primary); border-bottom-color: var(--accent-cyan); border-radius: 50%; animation: spin 1s infinite linear; margin-bottom: 18px; }
-@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+.publish-content-box {
+    background: var(--bg-solid); padding: 28px 24px; border-radius: var(--radius-xl);
+    text-align: center; border: 1px solid var(--border-glass);
+    box-shadow: 0 20px 45px rgba(0, 0, 0, 0.35); width: 90%; max-width: 360px;
+    transform: scale(0.96) translateY(8px);
+    transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+    will-change: transform;
+}
+.publish-lock-overlay.active .publish-content-box {
+    transform: scale(1) translateY(0);
+}
+.publish-spinner {
+    width: 56px; height: 56px; border: 3px solid rgba(255, 255, 255, 0.12);
+    border-top-color: var(--primary); border-right-color: var(--accent-cyan);
+    border-radius: 50%; animation: spin 0.75s linear infinite;
+    box-shadow: 0 0 20px var(--primary-glow); margin: 0 auto 16px;
+}
+@keyframes productSuccessPop {
+    0% { transform: scale(0.5); opacity: 0; }
+    70% { transform: scale(1.15); opacity: 1; }
+    100% { transform: scale(1); opacity: 1; }
+}
+.publish-success-icon {
+    font-size: 3.2rem; color: var(--success); margin-bottom: 12px;
+    animation: productSuccessPop 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+/* توافق فائق مع الأجهزة الضعيفة: إلغاء البلور والظلال الثقيلة لمنع هبوط الفريمات */
+html.low-performance .publish-lock-overlay,
+.low-performance .publish-lock-overlay {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    background: rgba(11, 17, 32, 0.96) !important;
+}
+html.low-performance .publish-content-box,
+.low-performance .publish-content-box {
+    transform: none !important;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4) !important;
+}
+html.low-performance .publish-spinner,
+.low-performance .publish-spinner {
+    box-shadow: none !important;
+    animation: spin 0.9s linear infinite !important;
+}
+html.low-performance .publish-success-icon,
+.low-performance .publish-success-icon {
+    animation: none !important;
+}
 
 .store-link-banner {
     background: var(--bg-solid); border: 1px solid var(--border-glass); border-radius: var(--radius-xl);
