@@ -619,6 +619,8 @@
             clearTimeout(window.dashboardSocketReconnectTimer);
             window.dashboardSocketReconnectTimer = null;
         }
+        window.dashboardSocketReady = false;
+        window.dashboardSnapshotLoaded = false;
         window.setDashboardSocketStatus('connecting');
         if (typeof window.ilsConnectionState === 'function') {
             window.ilsConnectionState('', 'جاري إنشاء اتصال آمن...');
@@ -819,6 +821,8 @@
         const ls = document.getElementById('initial-loading-screen');
         try {
             sessionStorage.setItem('merchant_session_started', 'true');
+            // يبدأ bootApp الاتصال مسبقاً؛ الاحتفاظ بالوعد يمنع فتح قناة ثانية.
+            let realtimeConnection = window.connectDashboardSocket();
 
             const cachedProducts = localStorage.getItem('merchant_products_cache');
             const cachedSettings = localStorage.getItem('merchant_settings_cache');
@@ -873,7 +877,7 @@
             let realtimeReady = false;
             while (!realtimeReady) {
                 try {
-                    realtimeReady = await window.connectDashboardSocket();
+                    realtimeReady = await realtimeConnection;
                 } catch (error) {
                     console.warn('تعذر بدء الاتصال اللحظي:', error);
                     realtimeReady = false;
@@ -883,6 +887,7 @@
                 if (!realtimeReady) {
                     if (window.ilsUpdate) window.ilsUpdate(30, 'بانتظار الاتصال اللحظي الآمن...');
                     await new Promise(resolve => setTimeout(resolve, navigator.onLine ? 1000 : 2500));
+                    realtimeConnection = window.connectDashboardSocket();
                 }
             }
             if (window.ilsUpdate) {
