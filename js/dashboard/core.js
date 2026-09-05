@@ -54,6 +54,8 @@
     window.dashboardReadState = { products: false, activeOrders: false, archivedOrders: false, settings: false, stats: false };
     window.dashboardSocketStop = false;
     window.dashboardSocketPingTimer = null;
+    window.dashboardSocketReconnectTimer = null;
+    window.dashboardSocketReconnectAttempt = 0;
     window.dashboardSocketStatus = 'idle';
     window.dashboardSocketLastError = '';
     window.dashboardSocketPaused = false;
@@ -600,6 +602,10 @@
             return window.dashboardSocketReady ? Promise.resolve(true) : window.dashboardDataReady;
         }
 
+        if (window.dashboardSocketReconnectTimer) {
+            clearTimeout(window.dashboardSocketReconnectTimer);
+            window.dashboardSocketReconnectTimer = null;
+        }
         window.setDashboardSocketStatus('connecting');
         window.dashboardDataReady = new Promise((resolve) => {
             const scheme = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -623,8 +629,8 @@
 
             window.dashboardSocket = socket;
             socket.addEventListener('open', () => {
-                if (window.dashboardSocketPaused || document.visibilityState === 'hidden') {
-                    socket.close(1000, 'التبويب مخفي');
+                if (socket !== window.dashboardSocket || window.dashboardSocketStop) {
+                    socket.close(1000, 'اتصال قديم');
                     return;
                 }
                 window.setDashboardSocketStatus('connecting', 'تم فتح القناة، بانتظار بيانات D1');
@@ -721,10 +727,12 @@
                 }
             });
             socket.addEventListener('error', () => {
+                if (socket !== window.dashboardSocket) return;
                 window.setDashboardSocketStatus('disconnected', 'رفض الخادم اتصال WebSocket');
                 finish(false);
             });
             socket.addEventListener('close', (event) => {
+                if (socket !== window.dashboardSocket) return;
                 window.dashboardSocketReady = false;
                 const reason = event.reason || (event.code === 1000 ? 'تم إغلاق الاتصال' : `رمز ${event.code}`);
                 window.setDashboardSocketStatus(navigator.onLine ? 'disconnected' : 'offline', reason);
@@ -753,14 +761,9 @@
     });
     document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'hidden') {
-            window.dashboardSocketPaused = true;
-            if (window.dashboardSocketPingTimer) {
-                clearInterval(window.dashboardSocketPingTimer);
-                window.dashboardSocketPingTimer = null;
-            }
-            if (window.dashboardSocket && [WebSocket.OPEN, WebSocket.CONNECTING].includes(window.dashboardSocket.readyState)) {
-                window.dashboardSocket.close(1000, 'التبويب مخفي');
-            }
+            // لا نغلق القناة عند تبديل التبويب؛ إغلاقها يسبب اتصالاً ولقطة
+            // جديدين في كل عودة، بينما تبقى القناة آمنة وتعيد الاتصال عند انقطاعها.
+            window.dashboardSocketPaused = false;
             return;
         }
 
