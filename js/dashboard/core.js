@@ -596,6 +596,9 @@
         const token = localStorage.getItem('merchant_token') || sessionStorage.getItem('merchant_token') || window.merchantToken;
         const merchantId = window.merchantUserId;
         if (!token || !merchantId || !window.WebSocket) {
+            if (typeof window.ilsConnectionState === 'function') {
+                window.ilsConnectionState('error', 'بيانات الاتصال غير متوفرة');
+            }
             window.setDashboardSocketStatus('disconnected', 'بيانات الدخول أو WebSocket غير متوفر');
             return Promise.resolve(false);
         }
@@ -608,6 +611,9 @@
             window.dashboardSocketReconnectTimer = null;
         }
         window.setDashboardSocketStatus('connecting');
+        if (typeof window.ilsConnectionState === 'function') {
+            window.ilsConnectionState('', 'جاري إنشاء اتصال آمن...');
+        }
         window.dashboardDataReady = new Promise((resolve) => {
             const scheme = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
             const socketUrl = `${scheme}//${window.location.host}/api/worker/ws?merchant_id=${encodeURIComponent(merchantId)}&token=${encodeURIComponent(token)}`;
@@ -615,11 +621,14 @@
             let settled = false;
             const handshakeTimer = setTimeout(() => {
                 if (!settled) {
+                    if (typeof window.ilsConnectionState === 'function') {
+                        window.ilsConnectionState('error', 'تعذر الاتصال، سيتم استخدام البيانات المحفوظة');
+                    }
                     window.setDashboardSocketStatus('disconnected', 'انتهت مهلة الاتصال');
                     finish(false);
                     if (socket.readyState === WebSocket.CONNECTING) socket.close();
                 }
-            }, 8000);
+            }, 4000);
             const finish = (value) => {
                 if (!settled) {
                     settled = true;
@@ -637,6 +646,12 @@
                 window.setDashboardSocketStatus('connecting', 'تم فتح القناة، بانتظار بيانات D1');
                 window.dashboardSocketReady = true;
                 window.dashboardSocketReconnectAttempt = 0;
+                if (typeof window.ilsConnectionState === 'function') {
+                    window.ilsConnectionState('success', 'تم التحقق من الاتصال الآمن');
+                }
+                // فتح القناة بعد التحقق من JWT يكفي لبدء الواجهة؛ اللقطة
+                // الكاملة تصل مباشرة بعد ذلك وتحدّث البيانات من الخلفية.
+                finish(true);
                 socket.send(JSON.stringify({ type: 'ping' }));
                 if (window.dashboardSocketPingTimer) clearInterval(window.dashboardSocketPingTimer);
                 window.dashboardSocketPingTimer = setInterval(() => {
@@ -648,6 +663,9 @@
                 try { message = JSON.parse(event.data); } catch (e) { return; }
                 if (message.event === 'initial_load') {
                     window.setDashboardSocketStatus('connected');
+                    if (typeof window.ilsConnectionState === 'function') {
+                        window.ilsConnectionState('success', 'تم تجهيز الاتصال والبيانات');
+                    }
                     window.dashboardSnapshotLoaded = true;
                     if (Array.isArray(message.products)) window.AppStore.setProducts(message.products);
                     if (Array.isArray(message.products)) window.dashboardReadState.products = true;
@@ -679,6 +697,9 @@
                     }
                     finish(true);
                 } else if (message.event === 'error') {
+                    if (typeof window.ilsConnectionState === 'function') {
+                        window.ilsConnectionState('error', 'تعذر تحميل الاتصال اللحظي');
+                    }
                     window.setDashboardSocketStatus('disconnected', message.message || 'فشل تحميل بيانات اللوحة');
                     finish(false);
                 } else if (message.event === 'product_updated' && message.product) {
