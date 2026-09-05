@@ -96,12 +96,12 @@
         );
         if (!ls || ls.dataset.hidden === '1' || !window.appDataReady || !window.dashboardConnectionChecked || !socketConnected) return;
         ls.dataset.hidden = '1';
-        ls.style.transition = 'opacity 0.28s ease';
+        ls.style.transition = 'opacity 0.12s ease';
         ls.style.opacity = '0';
         setTimeout(() => {
             ls.style.display = 'none';
             if (typeof switchT === 'function') switchT('dashboard');
-        }, 200);
+        }, 80);
     };
     </script>
 </div>
