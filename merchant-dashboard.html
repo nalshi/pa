@@ -76,6 +76,11 @@
         const text = document.getElementById('ils-status-text');
         if (text && message) text.textContent = message;
     };
+    window.ilsConnectionState = function(state, message) {
+        const dot = document.querySelector('.ils-status-dot');
+        if (dot) dot.className = `ils-status-dot ${state || ''}`;
+        window.ilsUpdate(0, message);
+    };
     window.appDataReady = false;
     window.introAnimDone = false;
 
