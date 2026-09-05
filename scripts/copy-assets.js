@@ -180,6 +180,7 @@ const redirectsContent = `# Cloudflare Pages — Clean URL routing
 /builder                      /store-builder/index.html           200
 /studio                       /store-builder/index.html           200
 /store-builder.html           /store-builder/index.html           200
+/*                            /index.html                          200
 `;
 fs.writeFileSync(path.resolve(distDir, '_redirects'), redirectsContent, 'utf8');
 fs.chmodSync(path.resolve(distDir, '_redirects'), SAFE_FILE_MODE);
