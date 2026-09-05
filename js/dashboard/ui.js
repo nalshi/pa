@@ -275,6 +275,9 @@
     };
 
     window.switchT = async function (tab) {
+        if (tab === 'orders' && typeof window.dismissOrderAlerts === 'function') {
+            window.dismissOrderAlerts();
+        }
         const formView = document.getElementById('product-form-view');
         if (formView && formView.style.display === 'block' && window.isProductFormDirty) {
             window.pendingTabToSwitch = tab;

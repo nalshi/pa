@@ -59,15 +59,20 @@
     window.evaluatePendingOrdersState = function () {
         if (!window.AppStore) return;
         const activeOrders = window.AppStore.getOrders('active');
+        const pendingOrders = activeOrders.filter(o => o.status === 'pending_merchant_approval');
         const totalActiveCount = activeOrders.length;
+        const pendingCount = pendingOrders.length;
         const alertBar = document.getElementById('persistent-order-alert');
+        const newOrderAlert = document.getElementById('new-order-alert');
+        const ordersSection = document.getElementById('orders');
+        const isOrdersTabOpen = Boolean(ordersSection && ordersSection.classList.contains('active'));
         const titleText = document.getElementById('persistent-title');
         const countText = document.getElementById('pending-count-text');
         const newOrdersBadge = document.getElementById('new-orders-badge');
         const navBadgeMobile = document.getElementById('nav-badge-mobile');
 
-        if (totalActiveCount > 0) {
-            const needsApproval = activeOrders.some(o => o.status === 'pending_merchant_approval');
+        if (pendingCount > 0 && !isOrdersTabOpen) {
+            const needsApproval = true;
             const isPreparing = activeOrders.some(o => o.status === 'confirmed_by_store');
             const isOutForDelivery = activeOrders.some(o => o.status === 'out_for_delivery');
 
@@ -98,21 +103,32 @@
             if (navBadgeMobile) navBadgeMobile.style.display = 'block';
         } else {
             if (alertBar) alertBar.classList.remove('show');
+            if (newOrderAlert) newOrderAlert.classList.remove('show');
             if (window.orderAudio) { window.orderAudio.pause(); window.orderAudio.currentTime = 0; }
             if (newOrdersBadge) newOrdersBadge.style.display = 'none';
             if (navBadgeMobile) navBadgeMobile.style.display = 'none';
         }
     };
 
+    window.dismissOrderAlerts = function () {
+        const alertBar = document.getElementById('persistent-order-alert');
+        const newOrderAlert = document.getElementById('new-order-alert');
+        if (alertBar) alertBar.classList.remove('show');
+        if (newOrderAlert) newOrderAlert.classList.remove('show');
+        if (window.orderAudio) {
+            window.orderAudio.loop = false;
+            window.orderAudio.pause();
+            window.orderAudio.currentTime = 0;
+        }
+    };
+
     window.goToPendingOrders = function () {
-        if (window.orderAudio) { window.orderAudio.pause(); window.orderAudio.currentTime = 0; }
+        window.dismissOrderAlerts();
         if (typeof window.switchT === 'function') window.switchT('orders');
     };
 
     window.stopRingingAndGoToOrders = function () {
-        if (window.orderAudio) { window.orderAudio.loop = false; window.orderAudio.pause(); window.orderAudio.currentTime = 0; }
-        const alert = document.getElementById('new-order-alert');
-        if (alert) alert.classList.remove('show');
+        window.dismissOrderAlerts();
         if (typeof window.switchT === 'function') window.switchT('orders');
     };
 

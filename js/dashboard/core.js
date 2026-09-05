@@ -715,12 +715,17 @@
                     }
                     window.AppStore.setOrders('active', next);
                     if (!wasKnown && message.order.status === 'pending_merchant_approval') {
+                        const ordersSection = document.getElementById('orders');
+                        const isOrdersTabOpen = Boolean(ordersSection && ordersSection.classList.contains('active'));
+                        if (isOrdersTabOpen) {
+                            window.dismissOrderAlerts?.();
+                        }
                         if (typeof window.addNotification === 'function') {
                             window.addNotification('fa-bell', 'وصل طلب جديد من ' + (message.order.customer_name || 'عميل'), 'warning');
                         }
                         const alert = document.getElementById('new-order-alert');
-                        if (alert) alert.classList.add('show');
-                        if (window.orderAudio && window.currentMerchantData?.settings?.push_notifications !== false) {
+                        if (alert && !isOrdersTabOpen) alert.classList.add('show');
+                        if (!isOrdersTabOpen && window.orderAudio && window.currentMerchantData?.settings?.push_notifications !== false) {
                             window.orderAudio.loop = true;
                             window.orderAudio.currentTime = 0;
                             window.orderAudio.play().catch(() => {});
