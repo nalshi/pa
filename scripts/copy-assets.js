@@ -80,7 +80,20 @@ for (const file of rootFiles) {
   }
 }
 
-// 3. مجلد بديل لصفحة المتجر فقط؛ تبقى صفحات الدخول ولوحة التحكم في جذر dist
+// 3. استخدام أسماء ملفات داخلية مختلفة لتجنب إعادة Cloudflare للصفحة إلى clean URL
+const flatPageNames = {
+  'login.html': 'auth-page.html',
+  'merchant-dashboard.html': 'merchant-app.html',
+};
+for (const [sourceName, targetName] of Object.entries(flatPageNames)) {
+  const source = path.resolve(distDir, sourceName);
+  const target = path.resolve(distDir, targetName);
+  if (fs.existsSync(source)) {
+    fs.renameSync(source, target);
+  }
+}
+
+// 4. مجلد بديل لصفحة المتجر فقط
 const htmlAliases = ['store-builder.html'];
 for (const file of htmlAliases) {
   const source = path.resolve(distDir, file);
@@ -92,14 +105,14 @@ for (const file of htmlAliases) {
   sanitizeCopiedPath(alias);
 }
 
-// 4. نسخ مجلد functions إن وُجد
+// 5. نسخ مجلد functions إن وُجد
 const functionsDir = path.resolve(rootDir, 'functions');
 if (fs.existsSync(functionsDir)) {
   safeCopy(functionsDir, path.resolve(distDir, 'functions'));
   console.log('  ✓ functions/ → dist/functions/');
 }
 
-// 5. إنشاء _headers و _redirects مباشرة في dist (للنشر على Cloudflare)
+// 6. إنشاء _headers و _redirects مباشرة في dist (للنشر على Cloudflare)
 const headersContent = `/*
   X-Content-Type-Options: nosniff
   Access-Control-Allow-Origin: *
@@ -107,10 +120,10 @@ const headersContent = `/*
 /index.html
   Cache-Control: no-cache, no-store, must-revalidate
 
-/login.html
+/auth-page.html
   Cache-Control: no-cache, no-store, must-revalidate
 
-/merchant-dashboard.html
+/merchant-app.html
   Cache-Control: no-cache, no-store, must-revalidate
 
 /store-builder.html
@@ -154,9 +167,12 @@ const redirectsContent = `# Cloudflare Pages — Clean URL routing
 /merchant-dashboard/js/*      /js/:splat                         200
 /merchant-dashboard/css/*     /css/:splat                        200
 /merchant-dashboard/manifest.json /manifest.json                  200
-/login                        /login.html                          200
-/dashboard                    /merchant-dashboard.html              200
-/merchant-dashboard           /merchant-dashboard.html              200
+/login                        /auth-page.html                       200
+/login/                       /auth-page.html                       200
+/dashboard                    /merchant-app.html                     200
+/dashboard/                   /merchant-app.html                     200
+/merchant-dashboard           /merchant-app.html                     200
+/merchant-dashboard/          /merchant-app.html                     200
 /builder                      /store-builder/index.html           200
 /studio                       /store-builder/index.html           200
 /store-builder.html           /store-builder/index.html           200
