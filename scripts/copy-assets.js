@@ -80,8 +80,8 @@ for (const file of rootFiles) {
   }
 }
 
-// 3. مجلدات بديلة للـ Clean URLs (login/ → login/index.html إلخ)
-const htmlAliases = ['login.html', 'merchant-dashboard.html', 'store-builder.html'];
+// 3. مجلد بديل لصفحة المتجر فقط؛ تبقى صفحات الدخول ولوحة التحكم في جذر dist
+const htmlAliases = ['store-builder.html'];
 for (const file of htmlAliases) {
   const source = path.resolve(distDir, file);
   if (!fs.existsSync(source)) continue;
@@ -104,11 +104,47 @@ const headersContent = `/*
   X-Content-Type-Options: nosniff
   Access-Control-Allow-Origin: *
 
+/index.html
+  Cache-Control: no-cache, no-store, must-revalidate
+
+/login.html
+  Cache-Control: no-cache, no-store, must-revalidate
+
+/merchant-dashboard.html
+  Cache-Control: no-cache, no-store, must-revalidate
+
+/store-builder.html
+  Cache-Control: no-cache, no-store, must-revalidate
+
+/login
+  Cache-Control: no-cache, no-store, must-revalidate
+
+/dashboard
+  Cache-Control: no-cache, no-store, must-revalidate
+
+/merchant-dashboard
+  Cache-Control: no-cache, no-store, must-revalidate
+
+/builder
+  Cache-Control: no-cache, no-store, must-revalidate
+
+/studio
+  Cache-Control: no-cache, no-store, must-revalidate
+
+/js/*
+  Cache-Control: no-cache, no-store, must-revalidate
+
+/css/*
+  Cache-Control: no-cache, no-store, must-revalidate
+
+/manifest.json
+  Cache-Control: no-cache, no-store, must-revalidate
+
 /assets/*
   Cache-Control: public, max-age=31536000, immutable
 
 /theme-config.json
-  Cache-Control: public, max-age=0, must-revalidate
+  Cache-Control: no-cache, no-store, must-revalidate
 `;
 fs.writeFileSync(path.resolve(distDir, '_headers'), headersContent, 'utf8');
 fs.chmodSync(path.resolve(distDir, '_headers'), SAFE_FILE_MODE);
@@ -118,11 +154,9 @@ const redirectsContent = `# Cloudflare Pages — Clean URL routing
 /merchant-dashboard/js/*      /js/:splat                         200
 /merchant-dashboard/css/*     /css/:splat                        200
 /merchant-dashboard/manifest.json /manifest.json                  200
-/login                        /login/index.html                   200
-/login.html                   /login/index.html                   200
-/dashboard                    /merchant-dashboard/index.html      200
-/merchant-dashboard           /merchant-dashboard/index.html      200
-/merchant-dashboard.html      /merchant-dashboard/index.html      200
+/login                        /login.html                          200
+/dashboard                    /merchant-dashboard.html              200
+/merchant-dashboard           /merchant-dashboard.html              200
 /builder                      /store-builder/index.html           200
 /studio                       /store-builder/index.html           200
 /store-builder.html           /store-builder/index.html           200
