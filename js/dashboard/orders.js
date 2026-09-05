@@ -6,6 +6,7 @@
     'use strict';
 
     let currentOrdersLimit = 25;
+    let renderedOrdersState = null;
     window.currentViewingOrderId = null;
 
     // ===== حقن واجهة قسم الطلبات والنافذة الموحدة ديناميكياً =====
@@ -169,6 +170,7 @@
         if (!container) return;
 
         if (!Array.isArray(data) || data.length === 0) {
+            renderedOrdersState = null;
             container.innerHTML = `
             <div style="text-align:center; padding:45px 20px;">
                 <div style="width: 65px; height: 65px; background: rgba(100, 116, 139, 0.08); border-radius: 50%; display: flex; justify-content: center; align-items: center; margin: 0 auto 14px;">
@@ -181,17 +183,45 @@
 
         const dataToShow = data.slice(0, currentOrdersLimit);
 
+        const ids = dataToShow.map(order => `${String(order.id)}:${String(order.status || '')}:${String(order.updated_at || '')}`);
+        const stateKey = `${filterType}:${ids.join(',')}`;
+        const previous = renderedOrdersState;
+        if (previous && previous.filterType === filterType
+            && previous.dataIds.length < ids.length
+            && ids.slice(0, previous.dataIds.length).every((id, index) => id === previous.dataIds[index])) {
+            const footer = document.getElementById('orders-load-more-wrap');
+            if (footer) footer.remove();
+            const fragment = document.createDocumentFragment();
+            dataToShow.slice(previous.dataIds.length).forEach(order => {
+                const template = document.createElement('template');
+                template.innerHTML = buildCompactRow(order).trim();
+                if (template.content.firstElementChild) fragment.appendChild(template.content.firstElementChild);
+            });
+            container.appendChild(fragment);
+            renderedOrdersState = { filterType, dataIds: ids, stateKey };
+            appendOrdersFooter(container, data.length, filterType);
+            return;
+        }
+
+        if (previous && previous.stateKey === stateKey) return;
+
         // بناء HTML بشكل متزامن (سريع لأن الكروت خفيفة)
         const rowsHtml = dataToShow.map(o => buildCompactRow(o)).join('');
 
-        let footerHtml = '';
-        if (data.length > currentOrdersLimit) {
-            footerHtml = `<div id="orders-load-more-wrap" style="text-align: center; margin-top: 14px;"><button onclick="loadMoreOrders('${filterType}')" class="btn-main" style="width: auto; margin: 0 auto; background: var(--bg-solid); color: var(--primary); border: 2px solid var(--primary); box-shadow: none; padding: 8px 18px; font-size: 0.88rem;">عرض المزيد (${data.length - currentOrdersLimit}) <i class="fas fa-chevron-down"></i></button></div>`;
-        }
-
         // كتابة HTML دفعة واحدة → يحسم الجمود
-        container.innerHTML = rowsHtml + footerHtml;
+        container.innerHTML = rowsHtml;
+        renderedOrdersState = { filterType, dataIds: ids, stateKey };
+        appendOrdersFooter(container, data.length, filterType);
     };
+
+    function appendOrdersFooter(container, total, filterType) {
+        if (total <= currentOrdersLimit) return;
+        const footer = document.createElement('div');
+        footer.id = 'orders-load-more-wrap';
+        footer.style.cssText = 'text-align:center;margin-top:14px;';
+        footer.innerHTML = `<button onclick="loadMoreOrders('${filterType}')" class="btn-main" style="width:auto;margin:0 auto;background:var(--bg-solid);color:var(--primary);border:2px solid var(--primary);box-shadow:none;padding:8px 18px;font-size:0.88rem;">عرض المزيد (${total - currentOrdersLimit}) <i class="fas fa-chevron-down"></i></button>`;
+        container.appendChild(footer);
+    }
 
     // بناء HTML لكرت طلب واحد (دالة مساعدة خفيفة)
     function buildCompactRow(o) {
@@ -216,7 +246,10 @@
         window.renderOrdersUI(data, filterType);
         // تمرير ناعم لأسفل
         const wrap = document.getElementById('orders-load-more-wrap');
-        if (wrap) wrap.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        if (wrap) wrap.scrollIntoView({
+            behavior: window.dashboardPerformanceMode === 'light' ? 'auto' : 'smooth',
+            block: 'center'
+        });
     };
 
 
@@ -292,7 +325,7 @@
 
             return `
             <div style="display:flex; gap:10px; margin-bottom:10px; padding-bottom:10px; border-bottom:1px dashed var(--border-glass); align-items:center;">
-                <img loading="lazy" decoding="async" src="${window.escapeHTML(imgUrl)}" style="width:48px; height:48px; border-radius:8px; object-fit:cover; border:1px solid var(--border-glass);">
+                <img width="48" height="48" loading="lazy" decoding="async" fetchpriority="low" src="${window.escapeHTML(imgUrl)}" alt="${window.escapeHTML(i.product_name || i.name || 'منتج')}" style="width:48px; height:48px; border-radius:8px; object-fit:cover; border:1px solid var(--border-glass);">
                 <div style="flex:1; min-width:0;">
                     <div style="font-weight:900; font-size:0.92rem; color:var(--text-main); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${window.escapeHTML(i.product_name || i.name || 'منتج')}</div>
                     <div style="display:flex; justify-content:space-between; font-size:0.82rem; margin-top:3px;">

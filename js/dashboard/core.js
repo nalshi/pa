@@ -56,8 +56,21 @@
     window.dashboardSocketPingTimer = null;
     window.dashboardSocketStatus = 'idle';
     window.dashboardSocketLastError = '';
+    window.dashboardSocketPaused = false;
     window.dashboardSectionsInitialized = {};
     window.dashboardReadPromises = {};
+
+    // اختيار مسار عرض أخف قبل بدء تحميل الوحدات الثانوية.
+    const connection = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+    window.dashboardPerformanceMode = (
+        (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches)
+        || Boolean(connection && connection.saveData)
+        || (navigator.deviceMemory && navigator.deviceMemory <= 2)
+        || (navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 2)
+    ) ? 'light' : 'full';
+    if (window.dashboardPerformanceMode === 'light') {
+        document.documentElement.classList.add('low-performance');
+    }
 
     // ===== التحقق من صلاحية الجلسة والتوكن =====
     window.checkTokenValidity = function () {
@@ -610,6 +623,10 @@
 
             window.dashboardSocket = socket;
             socket.addEventListener('open', () => {
+                if (window.dashboardSocketPaused || document.visibilityState === 'hidden') {
+                    socket.close(1000, 'التبويب مخفي');
+                    return;
+                }
                 window.setDashboardSocketStatus('connecting', 'تم فتح القناة، بانتظار بيانات D1');
                 window.dashboardSocketReady = true;
                 window.dashboardSocketReconnectAttempt = 0;
@@ -716,7 +733,7 @@
                     window.dashboardSocketPingTimer = null;
                 }
                 if (!settled) finish(false);
-                if (!window.dashboardSocketStop && navigator.onLine) {
+                if (!window.dashboardSocketStop && !window.dashboardSocketPaused && navigator.onLine && document.visibilityState === 'visible') {
                     const attempt = (window.dashboardSocketReconnectAttempt || 0) + 1;
                     window.dashboardSocketReconnectAttempt = attempt;
                     window.dashboardSocketReconnectTimer = setTimeout(() => {
@@ -735,7 +752,20 @@
         window.setDashboardSocketStatus('offline');
     });
     document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'visible' && !window.dashboardSocketStop) {
+        if (document.visibilityState === 'hidden') {
+            window.dashboardSocketPaused = true;
+            if (window.dashboardSocketPingTimer) {
+                clearInterval(window.dashboardSocketPingTimer);
+                window.dashboardSocketPingTimer = null;
+            }
+            if (window.dashboardSocket && [WebSocket.OPEN, WebSocket.CONNECTING].includes(window.dashboardSocket.readyState)) {
+                window.dashboardSocket.close(1000, 'التبويب مخفي');
+            }
+            return;
+        }
+
+        window.dashboardSocketPaused = false;
+        if (!window.dashboardSocketStop && navigator.onLine) {
             window.connectDashboardSocket();
         }
     });
@@ -795,7 +825,10 @@
 
             window.hideInitialLoadingScreen();
 
-            await window.connectDashboardSocket();
+            // لا نؤخر رسم اللوحة بسبب الاتصال اللحظي؛ يعاد الاتصال في الخلفية.
+            window.connectDashboardSocket().catch(error => {
+                console.warn('تعذر الاتصال اللحظي، ستستمر اللوحة بالتحميل:', error);
+            });
 
             // تحميل وعرض تبويب الرئيسية فوراً وبسرعة فائقة
             await window.ModuleLoader.load('dashboard-tab');
@@ -805,17 +838,26 @@
                 window.loadStoreData().catch(e => console.warn('تحديث الإعدادات:', e));
             }
 
-            // تحميل الموديولات الإضافية بهدوء في الخلفية دون تعطيل الواجهة
-            setTimeout(() => {
-                window.ModuleLoader.load('pwa');
-                window.ModuleLoader.load('orders');
-                window.ModuleLoader.load('categories');
-                window.ModuleLoader.load('products').then(() => {
-                    if (typeof window.loadAllFromJson === 'function') {
-                        window.loadAllFromJson(1, '', false, true);
+            // لا يتم تحميل أقسام المنتجات والطلبات إلا عند فتحها فعليًا.
+            // ميزات PWA ثانوية ويمكن تحميلها عندما يصبح المتصفح متفرغًا.
+            const loadDeferredFeatures = () => {
+                Promise.all([
+                    window.ModuleLoader.load('pwa'),
+                    window.ModuleLoader.load('settings')
+                ]).then(() => {
+                    if (typeof window.loadStoreData === 'function') {
+                        return window.loadStoreData();
                     }
-                }).catch(() => {});
-            }, 1000);
+                    return undefined;
+                }).catch(error => {
+                    console.warn('تعذر تحميل الميزات المؤجلة:', error);
+                });
+            };
+            if (window.requestIdleCallback) {
+                window.requestIdleCallback(loadDeferredFeatures, { timeout: window.dashboardPerformanceMode === 'light' ? 5000 : 2500 });
+            } else {
+                setTimeout(loadDeferredFeatures, window.dashboardPerformanceMode === 'light' ? 4000 : 2000);
+            }
 
         } catch (e) {
             console.error("System Error: ", e);
@@ -846,7 +888,7 @@
 
     // ===== الصوتيات والتنبيهات =====
     window.orderAudio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
-    window.orderAudio.load();
+    window.orderAudio.preload = 'none';
 
     function unlockAudio() {
         if (window.orderAudio) {

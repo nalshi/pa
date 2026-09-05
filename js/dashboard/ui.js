@@ -392,7 +392,10 @@
             }
         }
 
-        window.scrollTo({ top: 0, behavior: 'smooth' });
+        window.scrollTo({
+            top: 0,
+            behavior: window.dashboardPerformanceMode === 'light' ? 'auto' : 'smooth'
+        });
     };
 
     window.ModuleLoader.loaded.add('ui');

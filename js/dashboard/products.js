@@ -16,6 +16,7 @@
     window._productScrollAttached = false;
     window._renderingProducts = false; // حارس يمنع تكرار renderProductsInitial
     window._pendingProductsRefresh = false; // علامة: يوجد تحديث معلق ينتظر انتهاء الرسم الحالي
+    let productFilterTimer = null;
 
     // ===== حقن واجهة قائمة المنتجات ديناميكياً =====
     window.ensureProductsHTML = function () {
@@ -407,7 +408,7 @@
         const t = document.createElement('template');
         t.innerHTML = `<div class="product-card" data-pid="">
             <div class="p-image-wrapper">
-                <img class="p-image" loading="lazy" decoding="async" src="" alt="">
+                <img class="p-image" width="400" height="180" loading="lazy" decoding="async" fetchpriority="low" src="" alt="">
                 <div class="publish-badge live" id=""><i class="fas fa-check-circle"></i> بالمتجر</div>
             </div>
             <div class="p-details">
@@ -437,6 +438,7 @@
 
         const img = card.querySelector('.p-image');
         if (img) {
+            img.alt = p.name || 'صورة المنتج';
             img.src = window.getValidImageUrl(p.image);
             img.onerror = function () { this.onerror = null; this.src = window.PLACEHOLDER_IMG; };
         }
@@ -577,7 +579,11 @@
         window.ensureProductsHTML();
         const searchInput = document.getElementById('search-p');
         window.currentSearchTerm = searchInput ? searchInput.value.trim() : '';
-        window.renderProductsInitial();
+        if (productFilterTimer) clearTimeout(productFilterTimer);
+        productFilterTimer = setTimeout(() => {
+            productFilterTimer = null;
+            window.renderProductsInitial();
+        }, window.dashboardPerformanceMode === 'light' ? 180 : 100);
     };
 
     // ===== حذف منتج مع التحقق الصارم المسبق =====
