@@ -156,6 +156,16 @@ body.dark-mode .brand-nalsh-logo .nalsh-text-ar {
     box-shadow: 0 0 0 4px var(--primary-glow);
     animation: ils-pulse 1.6s ease-in-out infinite;
 }
+.ils-status-dot.success {
+    background: var(--success);
+    box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.16);
+    animation: none;
+}
+.ils-status-dot.error {
+    background: var(--danger);
+    box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.14);
+    animation: none;
+}
 @keyframes ils-pulse {
     50% { opacity: 0.35; transform: scale(0.8); }
 }
