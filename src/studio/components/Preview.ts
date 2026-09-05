@@ -13,7 +13,7 @@ export class Preview {
 
         return `
         <section class="sb-preview-pane">
-            <div class="sb-preview-device-switcher" aria-label="اختيار حجم المعاينة">
+            <div class="sb-preview-device-switcher ${currentDevice === 'desktop' ? 'is-desktop' : ''}" id="preview-device-switcher" aria-label="اختيار حجم المعاينة">
                 <button class="sb-device-btn ${currentDevice === 'mobile' ? 'active' : ''}" data-device="mobile" onclick="window.StudioUI.setDevice('mobile')" title="جوال">
                     <i class="fas fa-mobile-alt"></i>
                     <span>جوال</span>

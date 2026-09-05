@@ -37,10 +37,10 @@ export class Topbar {
             <!-- أجهزة المعاينة وأدوات التراجع -->
             <div class="sb-topbar-center">
                 <div class="sb-history-group">
-                    <button class="sb-icon-tool" id="btn-undo" onclick="window.StudioUI.undo()" title="تراجع (Ctrl+Z)" ${!canUndo ? 'disabled' : ''}>
+                    <button class="sb-icon-tool" data-history-action="undo" onclick="window.StudioUI.undo()" title="تراجع (Ctrl+Z)" ${!canUndo ? 'disabled' : ''}>
                         <i class="fas fa-undo"></i>
                     </button>
-                    <button class="sb-icon-tool" id="btn-redo" onclick="window.StudioUI.redo()" title="إعادة (Ctrl+Y)" ${!canRedo ? 'disabled' : ''}>
+                    <button class="sb-icon-tool" data-history-action="redo" onclick="window.StudioUI.redo()" title="إعادة (Ctrl+Y)" ${!canRedo ? 'disabled' : ''}>
                         <i class="fas fa-redo"></i>
                     </button>
                 </div>
