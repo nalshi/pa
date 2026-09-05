@@ -154,6 +154,14 @@
     };
 
     // ===== إظهار وإخفاء نموذج المنتج =====
+    window.setProductViewVisibility = function (view, visible) {
+        const element = document.getElementById(view);
+        if (!element) return;
+        element.hidden = !visible;
+        element.setAttribute('aria-hidden', visible ? 'false' : 'true');
+        element.style.setProperty('display', visible ? 'block' : 'none', 'important');
+    };
+
     window.showProductForm = async function (isEdit = false) {
         if (typeof window.startTabProgress === 'function') window.startTabProgress();
         window.ensureProductFormHTML();
@@ -164,10 +172,10 @@
         const formView = document.getElementById('product-form-view');
         const catView = document.getElementById('category-manager-view');
 
-        if (listView) listView.style.display = 'none';
-        if (catView) catView.style.display = 'none';
+        window.setProductViewVisibility('product-list-view', false);
+        window.setProductViewVisibility('category-manager-view', false);
         if (formView) {
-            formView.style.display = 'block';
+            window.setProductViewVisibility('product-form-view', true);
             formView.classList.remove('product-view-enter');
             void formView.offsetWidth; // trigger reflow for smooth enter
             formView.classList.add('product-view-enter');
@@ -238,10 +246,10 @@
         const formView = document.getElementById('product-form-view');
         const listView = document.getElementById('product-list-view');
         const catView = document.getElementById('category-manager-view');
-        if (formView) formView.style.display = 'none';
-        if (catView) catView.style.display = 'none';
+        window.setProductViewVisibility('product-form-view', false);
+        window.setProductViewVisibility('category-manager-view', false);
         if (listView) {
-            listView.style.display = 'block';
+            window.setProductViewVisibility('product-list-view', true);
             listView.classList.remove('product-view-enter');
             void listView.offsetWidth;
             listView.classList.add('product-view-enter');

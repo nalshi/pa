@@ -277,9 +277,15 @@
         const pList = document.getElementById('product-list-view');
         const pForm = document.getElementById('product-form-view');
         const cmView = document.getElementById('category-manager-view');
-        if (pList) pList.style.display = 'none';
-        if (pForm) pForm.style.display = 'none';
-        if (cmView) cmView.style.display = 'block';
+        if (typeof window.setProductViewVisibility === 'function') {
+            window.setProductViewVisibility('product-list-view', false);
+            window.setProductViewVisibility('product-form-view', false);
+            window.setProductViewVisibility('category-manager-view', true);
+        } else {
+            if (pList) pList.style.display = 'none';
+            if (pForm) pForm.style.display = 'none';
+            if (cmView) cmView.style.display = 'block';
+        }
 
         const cmInput = document.getElementById('cm-new-cat-input');
         if (cmInput) cmInput.value = '';
