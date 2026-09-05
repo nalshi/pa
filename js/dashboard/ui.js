@@ -330,6 +330,16 @@
                 await window.loadLocalDashboardStats();
             }
         } else if (tab === 'management') {
+            // لا نطلب المنتجات من Work قبل التأكد من وصول اللقطة اللحظية.
+            const realtimeReady = typeof window.ensureDashboardRealtime === 'function'
+                ? await window.ensureDashboardRealtime()
+                : false;
+            if (!realtimeReady) {
+                if (typeof window.showT === 'function') {
+                    window.showT('بانتظار الاتصال اللحظي لتحميل المنتجات', 'warning');
+                }
+                return;
+            }
             await Promise.all([
                 window.ModuleLoader.load('products'),
                 window.ModuleLoader.load('categories'),

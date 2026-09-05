@@ -69,7 +69,9 @@
 
     // ===== جلب شجرة الفئات من الخادم =====
     window.fetchCategoryTree = async function () {
-        if (window.dashboardSocketReady && Array.isArray(window.flatCategoriesList) && window.flatCategoriesList.length > 0) {
+        if (typeof window.isDashboardRealtimeReady === 'function'
+            && window.isDashboardRealtimeReady()
+            && Array.isArray(window.flatCategoriesList)) {
             window.initDynamicCategories();
             if (typeof window.refreshProductCategoryNames === 'function') {
                 window.refreshProductCategoryNames();

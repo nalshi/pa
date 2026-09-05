@@ -600,6 +600,13 @@
         );
     };
 
+    window.ensureDashboardRealtime = async function () {
+        if (window.isDashboardRealtimeReady()) return true;
+        const connection = window.connectDashboardSocket();
+        const connected = await connection;
+        return Boolean(connected && window.isDashboardRealtimeReady());
+    };
+
     // اتصال واحد آمن لكل جلسة؛ القراءة اللاحقة للأقسام تتم من اللقطة المحلية.
     window.connectDashboardSocket = function () {
         const token = localStorage.getItem('merchant_token') || sessionStorage.getItem('merchant_token') || window.merchantToken;

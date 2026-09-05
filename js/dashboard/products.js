@@ -316,7 +316,8 @@
         window.isFetchingProducts = true;
 
         try {
-            if (window.dashboardSocketReady || (window.dashboardReadState.products && window.AppStore.getProducts().length > 0)) {
+            if ((typeof window.isDashboardRealtimeReady === 'function' && window.isDashboardRealtimeReady())
+                || window.dashboardReadState.products) {
                 window.renderProductsInitial();
                 return;
             }
