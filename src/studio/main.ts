@@ -114,6 +114,14 @@ export class StudioApp {
             </main>
             ${HelpModal.render()}
             <div class="sb-mobile-view-switcher">
+                <div class="sb-history-group sb-mobile-history-group" aria-label="أدوات التراجع">
+                    <button class="sb-icon-tool" data-history-action="undo" onclick="window.StudioUI.undo()" title="تراجع (Ctrl+Z)" ${!studioState.canUndo() ? 'disabled' : ''}>
+                        <i class="fas fa-undo"></i>
+                    </button>
+                    <button class="sb-icon-tool" data-history-action="redo" onclick="window.StudioUI.redo()" title="إعادة (Ctrl+Y)" ${!studioState.canRedo() ? 'disabled' : ''}>
+                        <i class="fas fa-redo"></i>
+                    </button>
+                </div>
                 <button class="sb-m-view-btn ${mobileView === 'controls' ? 'active' : ''}" onclick="window.StudioUI.setMobileView('controls')">
                     <i class="fas fa-sliders-h"></i> <span>التخصيص</span>
                 </button>
@@ -136,10 +144,10 @@ export class StudioApp {
 
     private static handleStateUpdate(activeTab: ActiveTabKey, changeType: StateChangeType): void {
         // 1. Update undo/redo buttons in topbar
-        const btnUndo = document.getElementById('btn-undo') as HTMLButtonElement | null;
-        const btnRedo = document.getElementById('btn-redo') as HTMLButtonElement | null;
-        if (btnUndo) btnUndo.disabled = !studioState.canUndo();
-        if (btnRedo) btnRedo.disabled = !studioState.canRedo();
+        document.querySelectorAll<HTMLButtonElement>('[data-history-action="undo"]')
+            .forEach(button => { button.disabled = !studioState.canUndo(); });
+        document.querySelectorAll<HTMLButtonElement>('[data-history-action="redo"]')
+            .forEach(button => { button.disabled = !studioState.canRedo(); });
 
         if (changeType === 'tab') {
             // Update active state in rail
@@ -153,6 +161,10 @@ export class StudioApp {
             const pw = document.getElementById('preview-wrapper');
             if (pw) {
                 pw.className = `sb-preview-wrapper preview-frame-${studioState.currentDevice}`;
+            }
+            const previewDeviceSwitcher = document.getElementById('preview-device-switcher');
+            if (previewDeviceSwitcher) {
+                previewDeviceSwitcher.classList.toggle('is-desktop', studioState.currentDevice === 'desktop');
             }
             const dh = document.getElementById('preview-device-header');
             if (dh) {
