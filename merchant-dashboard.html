@@ -136,11 +136,6 @@
         <header class="topbar">
             <h1 class="page-title" id="page-title">الرئيسية</h1>
             <div class="topbar-actions">
-                <div id="dashboard-connection-status" title="حالة الاتصال اللحظي"
-                     style="display:flex; align-items:center; gap:6px; font-size:0.72rem; font-weight:800; color:var(--text-muted); margin-left:8px;">
-                    <span style="width:9px; height:9px; border-radius:50%; background:#94a3b8;"></span>
-                    <span>جاري التحقق...</span>
-                </div>
                 <button class="action-icon" onclick="toggleTheme()" title="تغيير المظهر"><i class="fas fa-moon" id="theme-icon"></i></button>
                 <div style="position:relative;">
                     <button id="notification-bell" class="action-icon" onclick="toggleNotificationPanel()" title="سجل النشاطات">
@@ -189,6 +184,8 @@
         if (typeof initTheme === 'function') initTheme();
         if (typeof setupNav === 'function') setupNav();
         if (typeof updateNotificationUI === 'function') updateNotificationUI();
+        // ابدأ القناة قبل أي قراءة للكاش أو تحميل أقسام اللوحة.
+        if (typeof connectDashboardSocket === 'function') connectDashboardSocket();
         document.querySelectorAll('.logout-btn').forEach(btn => {
             btn.onclick = (e) => { e.preventDefault(); handleLogout(); };
         });
