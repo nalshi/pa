@@ -8,7 +8,7 @@ import { studioState } from '../state';
 
 export class Topbar {
     public static render(): string {
-        const { currentDevice, isDarkPreview, merchantUsername } = studioState;
+        const { isDarkPreview, merchantUsername } = studioState;
         const canUndo = studioState.canUndo();
         const canRedo = studioState.canRedo();
 
@@ -34,7 +34,7 @@ export class Topbar {
                 </a>
             </div>
 
-            <!-- أجهزة المعاينة وأدوات التراجع -->
+            <!-- أدوات التراجع -->
             <div class="sb-topbar-center">
                 <div class="sb-history-group">
                     <button class="sb-icon-tool" data-history-action="undo" onclick="window.StudioUI.undo()" title="تراجع (Ctrl+Z)" ${!canUndo ? 'disabled' : ''}>
@@ -45,17 +45,6 @@ export class Topbar {
                     </button>
                 </div>
 
-                <div class="sb-device-switcher">
-                    <button class="sb-device-btn ${currentDevice === 'mobile' ? 'active' : ''}" data-device="mobile" onclick="window.StudioUI.setDevice('mobile')">
-                        <i class="fas fa-mobile-alt"></i> <span>جوال (390px)</span>
-                    </button>
-                    <button class="sb-device-btn ${currentDevice === 'tablet' ? 'active' : ''}" data-device="tablet" onclick="window.StudioUI.setDevice('tablet')">
-                        <i class="fas fa-tablet-alt"></i> <span>تابلت (768px)</span>
-                    </button>
-                    <button class="sb-device-btn ${currentDevice === 'desktop' ? 'active' : ''}" data-device="desktop" onclick="window.StudioUI.setDevice('desktop')">
-                        <i class="fas fa-desktop"></i> <span>كمبيوتر (100%)</span>
-                    </button>
-                </div>
             </div>
 
             <!-- أزرار الإجراءات والنشر -->
