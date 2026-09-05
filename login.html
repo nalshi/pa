@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>تسجيل الدخول | نالش</title>
     <meta name="description" content="سجل دخولك إلى حسابك في نالش كتاجر توصيل وابدأ في إدارة أعمالك ومبيعاتك.">
-    <link rel="manifest" href="/assets/manifest-CcMG7lbR.json">
-    <link rel="stylesheet" href="/assets/all.min-CdOG79-c.css" media="print" onload="this.media='all'">
+    <link rel="manifest" href="manifest.json">
+    <link rel="stylesheet" href="css/all.min.css" media="print" onload="this.media='all'">
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet">
     
     <script>
@@ -16,7 +16,7 @@
                 try {
                     let payload = JSON.parse(atob(token.split('.')[1]));
                     if (payload.exp * 1000 > Date.now()) {
-                        const redirectUrl = payload.role === 'merchant' ? 'merchant-dashboard.html' : 'delivery-dashboard.html';
+                        const redirectUrl = payload.role === 'merchant' ? 'merchant-app.html' : 'delivery-dashboard.html';
                         window.location.replace(redirectUrl);
                         return;
                     } else {
