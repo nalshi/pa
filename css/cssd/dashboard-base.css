@@ -803,7 +803,7 @@ body.dark-mode .cur-luxury-badge {
 }
 .product-card:hover { transform: translateY(-5px); border-color: var(--primary); box-shadow: var(--shadow-hover); }
 .p-image-wrapper { position: relative; width: 100%; height: 180px; overflow: hidden; background: #f8fafc;}
-.p-image { width: 100%; height: 100%; object-fit: cover; transition: transform 0.4s; }
+.p-image { width: 100%; height: 100%; object-fit: cover; transition: transform 0.4s; background: #f8fafc; }
 .product-card:hover .p-image { transform: scale(1.06); }
 
 .p-status { position: absolute; top: 10px; left: 10px; background: var(--success); color: white; padding: 4px 10px; border-radius: 50px; font-size: 0.75rem; font-weight: 900; cursor: pointer; border: none; box-shadow: 0 4px 10px rgba(16, 185, 129, 0.3); z-index: 2;}
@@ -901,6 +901,44 @@ input:checked + .slider { background: var(--success); }
 input:checked + .slider:before { transform: translateX(20px); }
 
 .modal { position: fixed; inset: 0; background: rgba(7, 10, 18, 0.8); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); z-index: 10005; display: none; justify-content: center; align-items: center; opacity: 0; transition: 0.3s ease; padding: 15px; }
+
+/* مسار خفيف للأجهزة محدودة الذاكرة أو الاتصالات التي تطلب تقليل البيانات. */
+.low-performance * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    * {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
+    }
+}
+
+.low-performance .bg-orbs,
+.low-performance .nalsh-decor-glow {
+    display: none;
+}
+
+.low-performance .sidebar,
+.low-performance .topbar,
+.low-performance .bottom-nav,
+.low-performance .card-4d,
+.low-performance .modal {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .bg-orbs,
+    .nalsh-decor-glow {
+        display: none;
+    }
+}
 .modal.show { display: flex; opacity: 1; }
 .modal-content { background: var(--bg-solid); width: 100%; max-width: 550px; border-radius: var(--radius-xl); padding: 22px; border: 1px solid var(--border-glass); box-shadow: 0 25px 50px rgba(0,0,0,0.35); transform: scale(0.96) translateY(15px); transition: 0.3s cubic-bezier(0.16, 1, 0.3, 1); max-height: 90vh; overflow-y: auto; }
 .modal.show .modal-content { transform: scale(1) translateY(0); }
