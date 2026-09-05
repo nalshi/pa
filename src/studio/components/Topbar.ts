@@ -15,7 +15,7 @@ export class Topbar {
         return `
         <header class="sb-topbar">
             <div class="sb-topbar-start">
-                <a href="merchant-dashboard.html" class="sb-btn-back">
+                <a href="merchant-app.html" class="sb-btn-back">
                     <i class="fas fa-arrow-right"></i>
                     <span>لوحة التاجر</span>
                 </a>
