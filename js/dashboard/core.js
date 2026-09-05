@@ -591,6 +591,15 @@
         el.title = detail || current[1];
     };
 
+    window.isDashboardRealtimeReady = function () {
+        return Boolean(
+            window.dashboardSocketReady &&
+            window.dashboardSnapshotLoaded &&
+            window.dashboardSocket &&
+            window.dashboardSocket.readyState === WebSocket.OPEN
+        );
+    };
+
     // اتصال واحد آمن لكل جلسة؛ القراءة اللاحقة للأقسام تتم من اللقطة المحلية.
     window.connectDashboardSocket = function () {
         const token = localStorage.getItem('merchant_token') || sessionStorage.getItem('merchant_token') || window.merchantToken;
@@ -603,7 +612,7 @@
             return Promise.resolve(false);
         }
         if (window.dashboardSocket && [WebSocket.OPEN, WebSocket.CONNECTING].includes(window.dashboardSocket.readyState)) {
-            return window.dashboardSocketReady ? Promise.resolve(true) : window.dashboardDataReady;
+            return window.isDashboardRealtimeReady() ? Promise.resolve(true) : window.dashboardDataReady;
         }
 
         if (window.dashboardSocketReconnectTimer) {
@@ -622,11 +631,13 @@
             const handshakeTimer = setTimeout(() => {
                 if (!settled) {
                     if (typeof window.ilsConnectionState === 'function') {
-                        window.ilsConnectionState('error', 'تعذر الاتصال، سيتم استخدام البيانات المحفوظة');
+                        window.ilsConnectionState('error', 'بانتظار الاتصال اللحظي الآمن...');
                     }
                     window.setDashboardSocketStatus('disconnected', 'انتهت مهلة الاتصال');
                     finish(false);
-                    if (socket.readyState === WebSocket.CONNECTING) socket.close();
+                    if (socket.readyState === WebSocket.CONNECTING || socket.readyState === WebSocket.OPEN) {
+                        socket.close(1011, 'لم تصل اللقطة الأولية');
+                    }
                 }
             }, 4000);
             const finish = (value) => {
@@ -646,12 +657,6 @@
                 window.setDashboardSocketStatus('connecting', 'تم فتح القناة، بانتظار بيانات D1');
                 window.dashboardSocketReady = true;
                 window.dashboardSocketReconnectAttempt = 0;
-                if (typeof window.ilsConnectionState === 'function') {
-                    window.ilsConnectionState('success', 'تم التحقق من الاتصال الآمن');
-                }
-                // فتح القناة بعد التحقق من JWT يكفي لبدء الواجهة؛ اللقطة
-                // الكاملة تصل مباشرة بعد ذلك وتحدّث البيانات من الخلفية.
-                finish(true);
                 socket.send(JSON.stringify({ type: 'ping' }));
                 if (window.dashboardSocketPingTimer) clearInterval(window.dashboardSocketPingTimer);
                 window.dashboardSocketPingTimer = setInterval(() => {
@@ -695,13 +700,14 @@
                         if (typeof window.renderTopSellersList === 'function') window.renderTopSellersList({ labels: stats.topProducts, data: stats.topCounts });
                         if (typeof window.renderWeeklyActivityBar === 'function') window.renderWeeklyActivityBar(stats.weekly);
                     }
-                    finish(true);
+                    finish(window.isDashboardRealtimeReady());
                 } else if (message.event === 'error') {
                     if (typeof window.ilsConnectionState === 'function') {
                         window.ilsConnectionState('error', 'تعذر تحميل الاتصال اللحظي');
                     }
                     window.setDashboardSocketStatus('disconnected', message.message || 'فشل تحميل بيانات اللوحة');
                     finish(false);
+                    if (socket.readyState === WebSocket.OPEN) socket.close(1011, 'فشل تحميل اللقطة الأولية');
                 } else if (message.event === 'product_updated' && message.product) {
                     window.AppStore.updateProduct(message.product);
                 } else if (message.event === 'product_removed' && message.product_id) {
@@ -761,6 +767,8 @@
             socket.addEventListener('close', (event) => {
                 if (socket !== window.dashboardSocket) return;
                 window.dashboardSocketReady = false;
+                window.dashboardSnapshotLoaded = false;
+                window.dashboardConnectionChecked = false;
                 const reason = event.reason || (event.code === 1000 ? 'تم إغلاق الاتصال' : `رمز ${event.code}`);
                 window.setDashboardSocketStatus(navigator.onLine ? 'disconnected' : 'offline', reason);
                 if (window.dashboardSocketPingTimer) {
@@ -860,20 +868,25 @@
                 localStorage.removeItem('merchant_archived_orders_cache');
             }
 
-            // الكاش أولاً لتظهر اللوحة فوراً، ثم اتصال WebSocket واحد للتحديثات.
+            // الكاش يجهز البيانات داخلياً فقط؛ لا تُفتح اللوحة قبل الاتصال اللحظي.
             if (window.ilsUpdate) window.ilsUpdate(10, 'التحقق من الاتصال اللحظي...');
             let realtimeReady = false;
-            try {
-                realtimeReady = await window.connectDashboardSocket();
-            } catch (error) {
-                console.warn('تعذر بدء الاتصال اللحظي:', error);
+            while (!realtimeReady) {
+                try {
+                    realtimeReady = await window.connectDashboardSocket();
+                } catch (error) {
+                    console.warn('تعذر بدء الاتصال اللحظي:', error);
+                    realtimeReady = false;
+                }
+                realtimeReady = Boolean(realtimeReady && window.isDashboardRealtimeReady());
+                window.dashboardConnectionChecked = realtimeReady;
+                if (!realtimeReady) {
+                    if (window.ilsUpdate) window.ilsUpdate(30, 'بانتظار الاتصال اللحظي الآمن...');
+                    await new Promise(resolve => setTimeout(resolve, navigator.onLine ? 1000 : 2500));
+                }
             }
-            window.dashboardConnectionChecked = true;
             if (window.ilsUpdate) {
-                window.ilsUpdate(
-                    realtimeReady ? 100 : 60,
-                    realtimeReady ? 'تم تأمين الاتصال، جاري فتح اللوحة...' : 'تعذر الاتصال اللحظي، سيتم العمل من الكاش المحلي'
-                );
+                window.ilsUpdate(100, 'تم تأمين الاتصال اللحظي، جاري فتح اللوحة...');
             }
 
             window.hideInitialLoadingScreen();
@@ -919,8 +932,8 @@
 
             if (!navigator.onLine) {
                 if (localStorage.getItem('merchant_products_cache') || localStorage.getItem('merchant_settings_cache')) {
-                    if (typeof window.showT === 'function') window.showT('أنت الآن تعمل في وضع الأوفلاين.', 'warning');
-                    window.hideInitialLoadingScreen();
+                    window.dashboardConnectionChecked = false;
+                    if (window.ilsUpdate) window.ilsUpdate(0, 'الاتصال غير متوفر، سيتم فتح اللوحة بعد عودته');
                     return;
                 }
                 if (window.ilsRelease) window.ilsRelease();
@@ -928,8 +941,8 @@
                     ls.innerHTML = `<div style="text-align:center; padding: 20px;"><i class="fas fa-wifi" style="font-size:3rem; color:var(--danger);"></i><h2>لا يوجد اتصال بالإنترنت</h2><button onclick="location.reload()" class="btn-main" style="margin-top:20px; width:auto; display:inline-block;">تحديث الصفحة</button></div>`;
                 }
             } else {
-                window.hideInitialLoadingScreen();
-                if (typeof window.showT === 'function') window.showT('حدث خطأ أثناء تحميل بعض البيانات، سيتم محاولة جلبها في الخلفية.', 'warning');
+                window.dashboardConnectionChecked = false;
+                if (window.ilsUpdate) window.ilsUpdate(0, 'تعذر الاتصال اللحظي، جارٍ إعادة المحاولة...');
             }
         }
     };
