@@ -25,8 +25,8 @@
                         <input id="orders-search-input" type="search" placeholder="ابحث برقم الطلب أو اسم العميل أو الهاتف..." autocomplete="off">
                     </div>
                     <div class="segment-group orders-filter">
-                    <button class="segment-btn active" onclick="loadOrders('active', this)">النشطة</button>
-                    <button class="segment-btn" onclick="loadOrders('archived', this)">السابقة</button>
+                    <button class="segment-btn active" onclick="loadOrders('active', this)"><i class="fas fa-bolt"></i> النشطة</button>
+                    <button class="segment-btn" onclick="loadOrders('archived', this)"><i class="fas fa-clock-rotate-left"></i> السابقة</button>
                     </div>
                 </div>
                 <div id="orders-container" class="orders-list-compact">
