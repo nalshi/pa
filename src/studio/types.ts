@@ -273,7 +273,6 @@ export type ActiveTabKey =
     | 'dark_colors'
     | 'ai_palette'
     | 'typography'
-    | 'shapes'
     | 'navigation'
     | 'marketing'
     | 'presets'

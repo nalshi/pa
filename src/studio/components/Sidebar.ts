@@ -15,7 +15,6 @@ import { ModalsTab } from './tabs/ModalsTab';
 import { ColorsTab } from './tabs/ColorsTab';
 import { AIPaletteTab } from './tabs/AIPaletteTab';
 import { TypographyTab } from './tabs/TypographyTab';
-import { ShapesTab } from './tabs/ShapesTab';
 import { MarketingTab } from './tabs/MarketingTab';
 import { JsonTab } from './tabs/JsonTab';
 import { NavigationTab } from './tabs/NavigationTab';
@@ -30,7 +29,6 @@ export class Sidebar {
         { key: 'sections', label: 'الأقسام', icon: 'fa-layer-group', color: '#06B6D4', group: 'تخطيط المتجر', kicker: 'ترتيب وظهور الأقسام' },
         { key: 'navigation', label: 'الأشرطة', icon: 'fa-bars', color: '#0EA5E9', group: 'تخطيط المتجر', kicker: 'أشرطة التنقل العلوية والسفلية' },
         { key: 'typography', label: 'الخطوط', icon: 'fa-font', color: '#14B8A6', group: 'تخطيط المتجر', kicker: 'الخطوط العربية وأحجام النصوص' },
-        { key: 'shapes', label: 'الأشكال', icon: 'fa-shapes', color: '#FBBF24', group: 'تخطيط المتجر', kicker: 'حواف وزوايا الكروت والأزرار' },
         { key: 'messages', label: 'الرسائل', icon: 'fa-comments', color: '#EC4899', group: 'تجربة المستخدم', kicker: 'رسائل التنبيهات والمساعد الذكي' },
         { key: 'modals', label: 'النوافذ', icon: 'fa-window-restore', color: '#F43F5E', group: 'تجربة المستخدم', kicker: 'شيت التفاصيل وسلة المشتريات' },
         { key: 'marketing', label: 'تسويق', icon: 'fa-bullhorn', color: '#EF4444', group: 'تجربة المستخدم', kicker: 'واتساب عائم وشريط الشحن' },
@@ -44,7 +42,7 @@ export class Sidebar {
         },
         {
             title: 'تخطيط المتجر',
-            tabs: ['products_layout', 'sections', 'navigation', 'typography', 'shapes'] as ActiveTabKey[]
+            tabs: ['products_layout', 'sections', 'navigation', 'typography'] as ActiveTabKey[]
         },
         {
             title: 'تجربة المستخدم',
@@ -71,7 +69,6 @@ export class Sidebar {
             case 'dark_colors': return ColorsTab.render('dark');
             case 'ai_palette': return AIPaletteTab.render();
             case 'typography': return TypographyTab.render();
-            case 'shapes': return ShapesTab.render();
             case 'navigation': return NavigationTab.render();
             case 'marketing': return MarketingTab.render();
             case 'json': return JsonTab.render();

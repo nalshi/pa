@@ -6,7 +6,6 @@
 
 import { StorefrontConfig, ActiveTabKey, DeviceMode } from './types';
 import { DEFAULT_STOREFRONT_CONFIG, sanitizeStorefrontConfig } from '../config/storefrontConfigSchema';
-import { WORKER_API_URL } from '../core/ApiClient';
 
 export type StateChangeType = 'tab' | 'device' | 'dark_mode' | 'mobile_view' | 'history' | 'full_sync' | 'live_update';
 type Listener = (config: StorefrontConfig, activeTab: ActiveTabKey, changeType: StateChangeType) => void;
@@ -52,9 +51,6 @@ export class StudioState {
         this.extractMerchantAuth();
         this.loadInitialConfig();
         this.pushHistory();
-        if (!this.isGuestMode) {
-            this.fetchCloudConfig();
-        }
     }
 
     /**
@@ -102,58 +98,7 @@ export class StudioState {
         }
     }
 
-    /**
-     * جلب الإعدادات السحابية للتاجر عبر السيرفر
-     */
-    public async fetchCloudConfig(): Promise<void> {
-        if (!this.merchantToken) return;
 
-        try {
-            const res = await fetch(WORKER_API_URL, {
-                method: 'POST',
-                cache: 'no-store',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': 'Bearer ' + this.merchantToken
-                },
-                body: JSON.stringify({
-                    action: 'get_storefront_config',
-                    username: this.merchantUsername,
-                    merchant_id: this.merchantUserId
-                })
-            });
-
-            if (res.status === 401 || res.status === 403) {
-                localStorage.removeItem('merchant_token');
-                sessionStorage.removeItem('merchant_token');
-                window.location.replace('login.html?redirect=store-builder.html&reauth=1');
-                return;
-            }
-
-            if (res.ok) {
-                const json = await res.json();
-                const cloudConfig = json?.data?.config || json?.config;
-                if (cloudConfig && typeof cloudConfig === 'object') {
-                    const { sanitizedConfig } = sanitizeStorefrontConfig(cloudConfig, this.merchantPlanType);
-                    this.config = sanitizedConfig;
-                    if (json.data?.store_info?.store_name) {
-                        this.merchantStoreName = json.data.store_info.store_name;
-                    }
-                    if (json.data?.tier) {
-                        this.merchantPlanType = json.data.tier;
-                    }
-                    this.isCloudSynced = true;
-                    try {
-                        localStorage.setItem(`nalsh_storefront_config_${this.merchantUsername}`, JSON.stringify(this.config));
-                    } catch (e) {}
-                    this.sendLiveUpdateToPreview();
-                    this.notify('full_sync');
-                }
-            }
-        } catch (err) {
-            console.warn('⚠️ Could not fetch remote config, using local draft:', err);
-        }
-    }
 
     public subscribe(fn: Listener): () => void {
         this.listeners.push(fn);
@@ -411,17 +356,39 @@ export class StudioState {
         }
     }
 
-    private loadInitialConfig(): void {
+    private async loadInitialConfig(): Promise<void> {
+        let hasLocalDraft = false;
         try {
             const saved = localStorage.getItem(`nalsh_storefront_config_${this.merchantUsername}`) || 
                           localStorage.getItem('nalsh_storefront_config_v2') ||
                           localStorage.getItem('nalsh_storefront_config');
             if (saved) {
                 const parsed = JSON.parse(saved);
-                const { sanitizedConfig } = sanitizeStorefrontConfig(parsed, this.merchantPlanType);
-                this.config = sanitizedConfig;
+                if (parsed && typeof parsed === 'object') {
+                    const { sanitizedConfig } = sanitizeStorefrontConfig(parsed, this.merchantPlanType);
+                    this.config = sanitizedConfig;
+                    hasLocalDraft = true;
+                }
             }
         } catch (e) {}
+
+        // إذا لم توجد مسودة في التخزين المحلي، نقرأ من نفس ملف تكوين المتجر المباشر (theme-config.json)
+        if (!hasLocalDraft) {
+            try {
+                const res = await fetch('theme-config.json?v=' + Date.now(), { cache: 'no-store' });
+                if (res.ok) {
+                    const json = await res.json();
+                    if (json && typeof json === 'object') {
+                        const { sanitizedConfig } = sanitizeStorefrontConfig(json, this.merchantPlanType);
+                        this.config = sanitizedConfig;
+                        this.sendLiveUpdateToPreview();
+                        this.notify('full_sync');
+                    }
+                }
+            } catch (err) {
+                console.warn('ℹ️ Using default storefront config baseline.');
+            }
+        }
     }
 }
 
