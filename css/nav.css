@@ -184,22 +184,41 @@
 }
 
 /* ----------------------------------
-   4. الشريط السفلي للهواتف (Mobile Bottom Bar)
+   4. الشريط السفلي للهواتف والمتاجر (Bottom Nav Bars)
 ------------------------------------- */
 .mobile-bar {
     position: fixed;
     bottom: 0;
     left: 0;
     right: 0;
-    height: var(--bottom-nav-height);
+    height: var(--bottom-nav-height, 65px);
     background: var(--glass-bg);
     backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
     border-top: 1px solid var(--border);
     display: flex;
     justify-content: space-around;
     align-items: center;
-    z-index: 100;
+    z-index: 1500 !important;
     box-shadow: 0 -10px 25px rgba(0,0,0,0.05);
+    padding-bottom: env(safe-area-inset-bottom);
+}
+
+.isolated-bottom-bar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: var(--bottom-nav-height, 65px);
+    background: var(--glass-bg);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-top: 1px solid var(--border);
+    box-shadow: 0 -8px 32px 0 rgba(31, 38, 135, 0.05);
+    display: none;
+    justify-content: space-around;
+    align-items: center;
+    z-index: 1500 !important;
     padding-bottom: env(safe-area-inset-bottom);
 }
 
@@ -207,25 +226,25 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 6px;
+    gap: 4px;
     color: var(--text-muted);
     cursor: pointer;
     font-size: 0.75rem;
     font-weight: 700;
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
     flex: 1;
-    padding: 10px 0;
+    padding: 8px 0;
 }
 
 .nav-item .nav-icon-container {
     position: relative;
-    font-size: 1.5rem;
-    width: 32px;
-    height: 32px;
+    font-size: 1.4rem;
+    width: 30px;
+    height: 30px;
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: transform 0.3s;
+    transition: transform 0.25s ease;
 }
 
 .nav-item.active {
@@ -233,7 +252,7 @@
 }
 
 .nav-item.active .nav-icon-container {
-    transform: translateY(-5px);
+    transform: translateY(-3px);
 }
 
 /* ----------------------------------
@@ -433,50 +452,56 @@ body.header-is-scrolled .sticky-category-bar {
    7. تعديلات الشاشات الكبيرة (التابلت والكمبيوتر)
 ------------------------------------- */
 @media (min-width: 768px) {
-    /* جعل الشريط السفلي يظهر في المنتصف بشكل أنيق ولا يختفي */
+    /* جعل الشريط السفلي يظهر كـ Floating Dock عصري في المنتصف */
     .mobile-bar, .isolated-bottom-bar {
         display: flex !important; 
-        max-width: 500px;
+        max-width: 560px;
+        width: fit-content;
+        min-width: 400px;
         left: 50% !important;
-        transform: translateX(-50%);
-        bottom: 15px;
-        border-radius: 25px;
-        border: 1px solid var(--border);
-        box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+        right: auto !important;
+        transform: translateX(-50%) !important;
+        bottom: 22px !important;
+        height: 62px !important;
+        border-radius: 9999px !important;
+        border: 1px solid var(--border, rgba(255,255,255,0.12)) !important;
+        box-shadow: 0 16px 36px rgba(0, 0, 0, 0.22) !important;
+        padding: 0 20px !important;
+        gap: 8px !important;
     }
-}
-/* الشريط السفلي للهواتف - يجب أن يكون أعلى من page-overlay */
-.mobile-bar {
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    height: var(--bottom-nav-height);
-    background: var(--glass-bg);
-    backdrop-filter: blur(20px);
-    border-top: 1px solid var(--border);
-    display: flex;
-    justify-content: space-around;
-    align-items: center;
-    z-index: 1500 !important; /* تم الرفع ليظهر فوق السلة والمفضلة */
-    box-shadow: 0 -10px 25px rgba(0,0,0,0.05);
-    padding-bottom: env(safe-area-inset-bottom);
-}
 
-.isolated-bottom-bar {
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    right: 0;
-    height: 75px;
-    z-index: 1500 !important; /* تم الرفع */
-    background: var(--glass-bg);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    border-top: 1px solid var(--border);
-    box-shadow: 0 -8px 32px 0 rgba(31, 38, 135, 0.05);
-    display: none;
-    justify-content: space-around;
-    align-items: center;
-    padding-bottom: env(safe-area-inset-bottom);
+    .mobile-bar .nav-item, .isolated-bottom-bar .nav-item {
+        flex-direction: row !important;
+        padding: 8px 16px !important;
+        border-radius: 9999px;
+        gap: 8px !important;
+        font-size: 0.85rem !important;
+        flex: 0 1 auto !important;
+        transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .mobile-bar .nav-item .nav-icon-container,
+    .isolated-bottom-bar .nav-item .nav-icon-container {
+        font-size: 1.2rem !important;
+        width: 24px !important;
+        height: 24px !important;
+    }
+
+    .mobile-bar .nav-item:hover,
+    .isolated-bottom-bar .nav-item:hover {
+        background: rgba(255, 255, 255, 0.08);
+        color: var(--theme-bottom-nav-active, var(--primary)) !important;
+        transform: translateY(-2px);
+    }
+
+    .mobile-bar .nav-item.active,
+    .isolated-bottom-bar .nav-item.active {
+        background: rgba(99, 102, 241, 0.12);
+        color: var(--theme-bottom-nav-active, var(--primary)) !important;
+    }
+
+    .mobile-bar .nav-item.active .nav-icon-container,
+    .isolated-bottom-bar .nav-item.active .nav-icon-container {
+        transform: none !important;
+    }
 }
