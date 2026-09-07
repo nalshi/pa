@@ -152,6 +152,13 @@ export class ThemeEngine {
       (window as any).HomeUI.applyLiveConfig(config);
     }
 
+    if (typeof (window as any).applyNavigationSettings === 'function') {
+      (window as any).applyNavigationSettings(config);
+    }
+    if (typeof (window as any).applyNalshBotConfig === 'function') {
+      (window as any).applyNalshBotConfig();
+    }
+
     events.emit('theme:applied', config);
   }
 
