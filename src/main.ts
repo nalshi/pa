@@ -15,7 +15,6 @@
 
 import { themeEngine } from './core/ThemeEngine';
 import { events } from './core/EventBus';
-import { AIChatbot } from './components/AIChatbot';
 
 // --- نقطة التشغيل: انتظار تهيئة محرك app.js الأصلي أولاً ---
 const tryInit = (retries = 0) => {
@@ -40,12 +39,6 @@ function bootNalshBridge(): void {
 
   // 4. تهيئة محرك StorefrontEngine القديم من TS (للاستوديو)
   exposeStorefrontCompatAPI();
-
-  // 5. تهيئة المساعد الذكي وتحديثه عند كل تغيير في الثيم/الـ config
-  AIChatbot.init();
-  events.on('config:updated', () => {
-    AIChatbot.refresh();
-  });
 
   console.log('✅ [Nalsh TS Bridge] Ready — all original JS features active.');
 }
@@ -155,7 +148,6 @@ function exposeStorefrontCompatAPI(): void {
     if (typeof (window as any).HomeUI?.applyLiveConfig === 'function') {
       (window as any).HomeUI.applyLiveConfig(cfg);
     }
-    AIChatbot.refresh();
   });
 }
 
