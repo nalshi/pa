@@ -7,7 +7,8 @@
   "private": true,
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build && node scripts/copy-assets.js",
+    "studio:bundle": "esbuild src/studio/main.ts --bundle --outfile=js/studio.js --format=esm && esbuild src/studio/styles/studio.css --bundle --outfile=css/studio.css",
+    "build": "tsc && npm run studio:bundle && vite build && node scripts/copy-assets.js",
     "pack": "npm run build",
     "preview": "vite preview",
     "type-check": "tsc --noEmit",
