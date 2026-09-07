@@ -141,55 +141,126 @@ if (!window.NalshBotUI) {
     ];
 
     window.getNalshAssistantConfig = function() {
-        const cfg = (window.currentStorefrontConfig && window.currentStorefrontConfig.messages && window.currentStorefrontConfig.messages.ai_assistant)
-            || (window.App && window.App.storeData && window.App.storeData.messages && window.App.storeData.messages.ai_assistant)
-            || {};
+        const rootCfg = window.currentStorefrontConfig || {};
+        const messages = rootCfg.messages || rootCfg.store_messages || (window.App && window.App.storeData && window.App.storeData.messages) || {};
+        const assistant = messages.ai_assistant || {};
+        const greeting = assistant.greeting || messages.chatbot_greeting || 'أنا المساعد الذكي الخاص بالمتجر، أقدر أساعدك باختيار المنتجات ومتابعة الطلبات.';
+
+        let quickActions = assistant.quick_actions;
+        if (typeof quickActions === 'string') {
+            quickActions = quickActions.split(',').map(s => s.trim()).filter(Boolean);
+        }
+        if (!Array.isArray(quickActions) || quickActions.length === 0) {
+            quickActions = ['🛒 سلة مشترياتي', '📦 تتبع طلباتي', '📞 تواصل مع البائع'];
+        }
+
         return {
-            enabled: true,
-            name: 'مساعد المتجر',
-            avatar_icon: 'fa-robot',
-            accent_color: '#4F46E5',
-            button_style: 'pill',
-            position: 'bottom-right',
-            greeting: 'أنا المساعد الذكي الخاص بالمتجر، أقدر أساعدك باختيار المنتجات ومتابعة الطلبات.',
-            quick_actions: ['🛒 سلة مشترياتي', '📦 تتبع طلباتي', '📞 تواصل مع البائع'],
-            ...cfg
+            enabled: assistant.enabled !== false,
+            name: assistant.name || 'مساعد المتجر',
+            avatar_icon: assistant.avatar_icon || 'fa-robot',
+            accent_color: assistant.accent_color || '#4F46E5',
+            button_style: assistant.button_style || 'pill',
+            avatar_style: assistant.avatar_style || 'pulse',
+            position: assistant.position || 'bottom-right',
+            status_text: assistant.status_text || 'متصل للرد الفوري',
+            greeting: greeting,
+            quick_actions: quickActions,
+            ...assistant
         };
     };
 
     window.applyNalshBotConfig = function() {
         const cfg = window.getNalshAssistantConfig();
+        const robot = document.querySelector('.cyber-robot');
+        const speech = document.getElementById('robot-speech');
+        const overlay = document.getElementById('nalsh-chat-overlay');
+
+        // 1. التفعيل أو الإخفاء الكامل
+        if (cfg.enabled === false) {
+            if (robot) robot.style.setProperty('display', 'none', 'important');
+            if (speech) speech.style.setProperty('display', 'none', 'important');
+            if (overlay) {
+                overlay.classList.remove('open');
+                overlay.style.display = 'none';
+            }
+            return;
+        }
+
+        if (robot) robot.style.display = '';
+        if (speech) speech.style.display = '';
+        if (overlay) overlay.style.display = '';
+
+        // 2. الاسم والأيقونة
         const title = document.getElementById('chat-store-name');
         if (title) title.textContent = cfg.name || 'مساعد المتجر';
 
         const avatarIcon = document.querySelector('.nalsh-avatar i');
         if (avatarIcon) avatarIcon.className = 'fas ' + (cfg.avatar_icon || 'fa-robot');
 
-        const accent = cfg.accent_color || '#4F46E5';
-        const robot = document.querySelector('.cyber-robot');
-        if (robot) {
-            robot.style.background = `linear-gradient(135deg, ${accent}, ${accent}cc)`;
-            robot.style.boxShadow = `0 12px 28px ${accent}55`;
+        // 3. نص الحالة
+        const statusTextEl = document.querySelector('.nalsh-chat-header .info p');
+        if (statusTextEl && cfg.status_text) {
+            statusTextEl.innerHTML = `${cfg.status_text} 🟢 <span style="opacity:0.75; font-size:0.78em;">(نسخة ذكية)</span>`;
         }
 
+        // 4. ألوان التمييز والتدرج
+        const accent = cfg.accent_color || '#4F46E5';
+        if (robot) {
+            robot.style.background = `linear-gradient(135deg, ${accent}, ${accent}cc)`;
+            robot.style.boxShadow = `0 8px 22px ${accent}55`;
+        }
         const header = document.querySelector('.nalsh-chat-header');
         if (header) {
             header.style.background = `linear-gradient(135deg, ${accent}, ${accent}bb)`;
         }
-
-        const overlay = document.getElementById('nalsh-chat-overlay');
-        if (overlay && cfg.enabled === false) {
-            overlay.style.display = 'none';
-        } else if (overlay) {
-            overlay.style.display = 'block';
+        const sendBtn = document.getElementById('nalsh-send-btn');
+        if (sendBtn) {
+            sendBtn.style.background = accent;
         }
 
-        if (cfg.enabled === false) {
-            if (robot) robot.style.display = 'none';
-            return;
+        // 5. الموضع (يمين أو يسار)
+        if (robot) {
+            if (cfg.position === 'bottom-left') {
+                robot.style.right = 'auto';
+                robot.style.left = '18px';
+                if (speech) {
+                    speech.style.right = 'auto';
+                    speech.style.left = '18px';
+                    speech.style.borderRadius = '20px 20px 20px 0';
+                    speech.style.transformOrigin = 'bottom left';
+                }
+            } else {
+                robot.style.right = '18px';
+                robot.style.left = 'auto';
+                if (speech) {
+                    speech.style.right = '18px';
+                    speech.style.left = 'auto';
+                    speech.style.borderRadius = '20px 20px 0 20px';
+                    speech.style.transformOrigin = 'bottom right';
+                }
+            }
+
+            // 6. شكل الزر (Button Style)
+            if (cfg.button_style === 'bubble') {
+                robot.style.borderRadius = '50%';
+                robot.style.width = '52px';
+                robot.style.height = '52px';
+            } else if (cfg.button_style === 'minimal') {
+                robot.style.borderRadius = '14px';
+                robot.style.width = '46px';
+                robot.style.height = '46px';
+            } else {
+                robot.style.borderRadius = '40% 40% 50% 50% / 60% 60% 40% 40%';
+                robot.style.width = '48px';
+                robot.style.height = '56px';
+            }
         }
 
-        if (robot) robot.style.display = '';
+        // 7. رسالة الترحيب الحية في الروبوت أثناء المعاينة
+        const greeting = cfg.greeting || (window.currentStorefrontConfig?.messages?.chatbot_greeting) || 'أهلاً بك! كيف يمكنني مساعدتك؟ 🤖';
+        if (typeof window.robotSpeak === 'function' && window.parent && window.parent !== window) {
+            window.robotSpeak(greeting, 'happy', 3500);
+        }
     };
 
     // ==========================================
@@ -1032,6 +1103,10 @@ if (!window.NalshBotUI) {
         if (!event.data || typeof event.data !== 'object') return;
         const updateType = event.data.type;
         if (updateType === 'NALSH_CONFIG_UPDATE' || updateType === 'NALSH_THEME_UPDATE' || updateType === 'STORE_CONFIG_UPDATED') {
+            const newConfig = event.data.config || event.data.payload;
+            if (newConfig) {
+                window.currentStorefrontConfig = newConfig;
+            }
             if (typeof window.applyNalshBotConfig === 'function') {
                 window.applyNalshBotConfig();
             }
