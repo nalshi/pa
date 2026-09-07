@@ -67,7 +67,7 @@ export class HelpModal {
                 </div>
 
                 <div style="display:flex; justify-content:flex-end; margin-top:20px;">
-                    <button class="btn-sb-primary" style="width:100%; justify-content:center; padding:12px;" onclick="window.StudioUI.closeHelpModal()">
+                    <button class="sb-btn sb-btn-primary" style="width:100%; justify-content:center; padding:12px;" onclick="window.StudioUI.closeHelpModal()">
                         فهمت، لنبدأ التخصيص! ✨
                     </button>
                 </div>

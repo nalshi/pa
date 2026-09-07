@@ -130,9 +130,42 @@ export class StudioApp {
                 </button>
             </div>
         `;
+
+        // إغلاق قائمة "المزيد" تلقائياً عند النقر خارجها
+        document.addEventListener('click', (e) => {
+            const dropdown = document.getElementById('sb-more-dropdown');
+            if (dropdown && dropdown.classList.contains('show')) {
+                const target = e.target as HTMLElement | null;
+                if (!target?.closest('.sb-topbar-more-container')) {
+                    dropdown.classList.remove('show');
+                }
+            }
+        });
     }
 
     public static refreshActiveTab(preserveScroll = true): void {
+        const currentTabInfo = Sidebar.getTabInfo(studioState.activeTab);
+        const kickerEl = document.getElementById('sb-active-kicker');
+        const titleEl = document.getElementById('sb-active-title');
+        if (kickerEl) kickerEl.textContent = currentTabInfo.kicker;
+        if (titleEl) titleEl.textContent = currentTabInfo.label;
+
+        // تحديث التبويب النشط في الشريط العمودي للحاسوب
+        document.querySelectorAll('#sb-tabs-rail .sb-rail-btn').forEach(btn => {
+            const tab = btn.getAttribute('data-tab');
+            btn.classList.toggle('active', tab === studioState.activeTab);
+        });
+
+        // تحديث التبويب النشط في شريط الجوال وتمريره للمنتصف بسلاسة
+        document.querySelectorAll('#sb-mobile-tabs-bar .sb-mobile-tab-pill').forEach(btn => {
+            const tab = btn.getAttribute('data-tab');
+            const isActive = tab === studioState.activeTab;
+            btn.classList.toggle('active', isActive);
+            if (isActive) {
+                btn.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+            }
+        });
+
         const area = document.getElementById('sb-tab-content-area');
         if (!area) return;
         const currentScroll = preserveScroll ? area.scrollTop : 0;
@@ -150,11 +183,6 @@ export class StudioApp {
             .forEach(button => { button.disabled = !studioState.canRedo(); });
 
         if (changeType === 'tab') {
-            // Update active state in rail
-            document.querySelectorAll('#sb-tabs-rail .sb-rail-btn').forEach(btn => {
-                const tab = btn.getAttribute('data-tab');
-                btn.classList.toggle('active', tab === activeTab);
-            });
             StudioApp.refreshActiveTab(false);
         } else if (changeType === 'device') {
             // Update preview wrapper frame class
@@ -227,6 +255,15 @@ export class StudioApp {
             redo: () => StudioApp.redo(),
             openHelpModal: () => HelpModal.open(),
             closeHelpModal: () => HelpModal.close(),
+            toggleMoreMenu: (e?: Event) => {
+                if (e) {
+                    e.stopPropagation();
+                }
+                const dropdown = document.getElementById('sb-more-dropdown');
+                if (dropdown) {
+                    dropdown.classList.toggle('show');
+                }
+            },
 
             handleIdentityChange: (key: string, value: string) => {
                 studioState.updateConfig(cfg => {
@@ -690,19 +727,15 @@ export class StudioApp {
             },
 
             filterPresetCards: (category: string, clickedBtn: HTMLElement) => {
-                // تحديث حالة الأزرار
+                // تحديث حالة الأزرار النشطة
                 const pillContainer = document.getElementById('theme-category-pills');
                 if (pillContainer) {
                     pillContainer.querySelectorAll('.sb-badge-pill').forEach(b => {
-                        (b as HTMLElement).style.background = 'var(--sb-surface)';
-                        (b as HTMLElement).style.borderColor = 'var(--sb-border)';
-                        (b as HTMLElement).style.color = 'var(--sb-text)';
+                        b.classList.remove('active');
                     });
                 }
                 if (clickedBtn) {
-                    clickedBtn.style.background = 'var(--sb-primary)';
-                    clickedBtn.style.borderColor = 'var(--sb-primary)';
-                    clickedBtn.style.color = '#FFFFFF';
+                    clickedBtn.classList.add('active');
                 }
 
                 // إظهار أو إخفاء الكروت
@@ -793,6 +826,15 @@ export class StudioApp {
                 studioState.updateConfig(cfg => {
                     if (!cfg.shapes) cfg.shapes = {} as any;
                     (cfg.shapes as any)[key] = value;
+                }, true, 'full_sync');
+                StudioApp.refreshActiveTab(true);
+            },
+
+            handleButtonStyleChange: (style: 'rounded' | 'pill' | 'square' | string, radius: string) => {
+                studioState.updateConfig(cfg => {
+                    if (!cfg.shapes) cfg.shapes = {} as any;
+                    cfg.shapes.button_style = style as any;
+                    cfg.shapes.button_radius = radius;
                 }, true, 'full_sync');
                 StudioApp.refreshActiveTab(true);
             },
@@ -997,11 +1039,17 @@ export class StudioApp {
 
                 try {
                     const token = studioState.merchantToken || localStorage.getItem('merchant_token') || sessionStorage.getItem('merchant_token');
-                    if (!token) {
-                        Toast.show('يجب تسجيل الدخول كتاجر لتتمكن من النشر 🔒', 'error');
-                        setTimeout(() => {
-                            window.location.replace('login.html?redirect=store-builder.html');
-                        }, 1200);
+                    if (studioState.isGuestMode || !token) {
+                        try {
+                            const cfgStr = JSON.stringify(studioState.config);
+                            localStorage.setItem(`nalsh_storefront_config_${studioState.merchantUsername}`, cfgStr);
+                            localStorage.setItem('nalsh_storefront_config', cfgStr);
+                            localStorage.setItem('nalsh_storefront_config_guest_draft', cfgStr);
+                        } catch (e) {}
+                        Toast.show('تم حفظ تصميمك محلياً كمسودة بنجاح! 💾', 'success');
+                        if (confirm('أنت حالياً في وضع المعاينة التجريبي. تم حفظ كافة تعديلاتك محلياً. هل تود الانتقال إلى تسجيل الدخول لنشرها سحابياً على متجرك المباشر؟')) {
+                            window.location.href = 'login.html?redirect=store-builder.html';
+                        }
                         return;
                     }
 

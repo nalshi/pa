@@ -1,6 +1,7 @@
 /**
  * ========================================================
- * 🗂️ Studio Sidebar & Tab Navigator
+ * 🗂️ Studio Sidebar & Tab Navigator v4.5
+ * لوحة تحكم متجاوبة بالكامل مع شريط عمودي للحاسوب وشريط أفقي للموبايل
  * ========================================================
  */
 
@@ -20,20 +21,20 @@ import { JsonTab } from './tabs/JsonTab';
 import { NavigationTab } from './tabs/NavigationTab';
 
 export class Sidebar {
-    public static readonly TAB_ITEMS: Array<{ key: ActiveTabKey; label: string; icon: string; color: string }> = [
-        { key: 'identity', label: 'الهوية', icon: 'fa-store', color: '#6366F1' },
-        { key: 'ai_palette', label: '20 ثيم', icon: 'fa-palette', color: '#A78BFA' },
-        { key: 'light_colors', label: 'الفاتح', icon: 'fa-sun', color: '#F59E0B' },
-        { key: 'dark_colors', label: 'الداكن', icon: 'fa-moon', color: '#818CF8' },
-        { key: 'products_layout', label: 'المنتجات', icon: 'fa-boxes-stacked', color: '#10B981' },
-        { key: 'sections', label: 'الأقسام', icon: 'fa-layer-group', color: '#06B6D4' },
-        { key: 'navigation', label: 'الأشرطة', icon: 'fa-bars', color: '#0EA5E9' },
-        { key: 'typography', label: 'الخطوط', icon: 'fa-font', color: '#14B8A6' },
-        { key: 'shapes', label: 'الأشكال', icon: 'fa-shapes', color: '#FBBF24' },
-        { key: 'messages', label: 'الرسائل', icon: 'fa-comments', color: '#EC4899' },
-        { key: 'modals', label: 'النوافذ', icon: 'fa-window-restore', color: '#F43F5E' },
-        { key: 'marketing', label: 'تسويق', icon: 'fa-bullhorn', color: '#EF4444' },
-        { key: 'json', label: 'JSON', icon: 'fa-code', color: '#94A3B8' }
+    public static readonly TAB_ITEMS: Array<{ key: ActiveTabKey; label: string; icon: string; color: string; group: string; kicker: string }> = [
+        { key: 'identity', label: 'الهوية', icon: 'fa-store', color: '#6366F1', group: 'أساسيات المتجر', kicker: 'بيانات المتجر والترويج' },
+        { key: 'ai_palette', label: '20 ثيم', icon: 'fa-palette', color: '#A78BFA', group: 'أساسيات المتجر', kicker: 'باقة الثيمات المتناسقة' },
+        { key: 'light_colors', label: 'الفاتح', icon: 'fa-sun', color: '#F59E0B', group: 'أساسيات المتجر', kicker: 'ألوان ومظهر الوضع النهاري' },
+        { key: 'dark_colors', label: 'الداكن', icon: 'fa-moon', color: '#818CF8', group: 'أساسيات المتجر', kicker: 'ألوان ومظهر الوضع الليلي' },
+        { key: 'products_layout', label: 'المنتجات', icon: 'fa-boxes-stacked', color: '#10B981', group: 'تخطيط المتجر', kicker: 'أعمدة وسلايدر المنتجات' },
+        { key: 'sections', label: 'الأقسام', icon: 'fa-layer-group', color: '#06B6D4', group: 'تخطيط المتجر', kicker: 'ترتيب وظهور الأقسام' },
+        { key: 'navigation', label: 'الأشرطة', icon: 'fa-bars', color: '#0EA5E9', group: 'تخطيط المتجر', kicker: 'أشرطة التنقل العلوية والسفلية' },
+        { key: 'typography', label: 'الخطوط', icon: 'fa-font', color: '#14B8A6', group: 'تخطيط المتجر', kicker: 'الخطوط العربية وأحجام النصوص' },
+        { key: 'shapes', label: 'الأشكال', icon: 'fa-shapes', color: '#FBBF24', group: 'تخطيط المتجر', kicker: 'حواف وزوايا الكروت والأزرار' },
+        { key: 'messages', label: 'الرسائل', icon: 'fa-comments', color: '#EC4899', group: 'تجربة المستخدم', kicker: 'رسائل التنبيهات والمساعد الذكي' },
+        { key: 'modals', label: 'النوافذ', icon: 'fa-window-restore', color: '#F43F5E', group: 'تجربة المستخدم', kicker: 'شيت التفاصيل وسلة المشتريات' },
+        { key: 'marketing', label: 'تسويق', icon: 'fa-bullhorn', color: '#EF4444', group: 'تجربة المستخدم', kicker: 'واتساب عائم وشريط الشحن' },
+        { key: 'json', label: 'JSON', icon: 'fa-code', color: '#94A3B8', group: 'متقدم', kicker: 'محرر البرومبت وملف JSON' }
     ];
 
     public static readonly TAB_GROUPS = [
@@ -54,6 +55,10 @@ export class Sidebar {
             tabs: ['json'] as ActiveTabKey[]
         }
     ];
+
+    public static getTabInfo(tabKey: ActiveTabKey) {
+        return Sidebar.TAB_ITEMS.find(item => item.key === tabKey) || Sidebar.TAB_ITEMS[0];
+    }
 
     public static renderTabContent(tabKey: ActiveTabKey = studioState.activeTab): string {
         switch (tabKey) {
@@ -76,62 +81,58 @@ export class Sidebar {
 
     public static render(): string {
         const { activeTab } = studioState;
+        const currentTab = Sidebar.getTabInfo(activeTab);
         const tabContentHtml = Sidebar.renderTabContent(activeTab);
 
         return `
         <aside class="sb-sidebar-pane">
-            <nav class="sb-nav-rail" id="sb-tabs-rail">
-                ${Sidebar.TAB_GROUPS.flatMap(group => group.tabs).map(tabKey => {
-                    const tab = Sidebar.TAB_ITEMS.find(item => item.key === tabKey);
-                    if (!tab) return '';
-                    return `
-                        <button class="sb-rail-btn ${activeTab === tab.key ? 'active' : ''}" 
-                                data-tab="${tab.key}"
-                                onclick="window.StudioUI.setActiveTab('${tab.key}')" 
-                                title="${tab.label}">
-                            <div class="sb-rail-icon" style="color: ${tab.color};">
-                                <i class="fas ${tab.icon}"></i>
-                            </div>
-                            <span class="sb-rail-label">${tab.label}</span>
-                        </button>
-                    `;
-                }).join('')}
+            <!-- 1. شريط التنقل العمودي الكلاسيكي (يظهر على الشاشات الكبيرة) -->
+            <nav class="sb-nav-rail" id="sb-tabs-rail" aria-label="تبويبات التخصيص">
+                ${Sidebar.TAB_ITEMS.map(tab => `
+                    <button class="sb-rail-btn ${activeTab === tab.key ? 'active' : ''}" 
+                            data-tab="${tab.key}"
+                            onclick="window.StudioUI.setActiveTab('${tab.key}')" 
+                            title="${tab.label}">
+                        <div class="sb-rail-icon" style="color: ${tab.color};">
+                            <i class="fas ${tab.icon}"></i>
+                        </div>
+                        <span class="sb-rail-label">${tab.label}</span>
+                    </button>
+                `).join('')}
             </nav>
 
-            <div class="sb-tab-content-wrapper" id="sb-tab-content-area">
+            <!-- 2. جسم لوحة التحكم الرئيسي -->
+            <div class="sb-sidebar-main">
+                <!-- رأس اللوحة الثابت (لا يختفي عند تبديل التبويبات) -->
                 <div class="sb-sidebar-header">
                     <div>
-                        <span class="sb-sidebar-kicker">إعدادات المتجر</span>
-                        <h2>لوحة التخصيص</h2>
+                        <span class="sb-sidebar-kicker" id="sb-active-kicker">${currentTab.kicker}</span>
+                        <h2 id="sb-active-title">${currentTab.label}</h2>
                     </div>
-                    <button class="sb-mini-btn" onclick="window.StudioUI.openHelpModal()">
-                        <i class="fas fa-lightbulb"></i>
+                    <button class="sb-mini-btn" onclick="window.StudioUI.openHelpModal()" title="تعليمات الاستوديو">
+                        <i class="fas fa-lightbulb" style="color:#FBBF24;"></i>
                     </button>
                 </div>
 
-                <div class="sb-tab-group-list">
-                    ${Sidebar.TAB_GROUPS.map(group => `
-                        <div class="sb-tab-group">
-                            <div class="sb-tab-group-header">${group.title}</div>
-                            <div class="sb-tab-group-links">
-                                ${group.tabs.map(tabKey => {
-                                    const tab = Sidebar.TAB_ITEMS.find(item => item.key === tabKey);
-                                    if (!tab) return '';
-                                    return `
-                                        <button class="sb-tab-link ${activeTab === tab.key ? 'active' : ''}" data-tab="${tab.key}" onclick="window.StudioUI.setActiveTab('${tab.key}')">
-                                            <span class="sb-tab-link-icon" style="color: ${tab.color};"><i class="fas ${tab.icon}"></i></span>
-                                            <span>${tab.label}</span>
-                                        </button>
-                                    `;
-                                }).join('')}
-                            </div>
-                        </div>
+                <!-- شريط التبويبات الأفقي للهواتف والأجهزة اللوحية (يظهر تلقائياً على الشاشات <900px) -->
+                <nav class="sb-mobile-tabs-bar" id="sb-mobile-tabs-bar" aria-label="تبويبات الموبايل">
+                    ${Sidebar.TAB_ITEMS.map(tab => `
+                        <button class="sb-mobile-tab-pill ${activeTab === tab.key ? 'active' : ''}" 
+                                data-tab="${tab.key}"
+                                onclick="window.StudioUI.setActiveTab('${tab.key}')">
+                            <i class="fas ${tab.icon}" style="color: ${tab.color};"></i>
+                            <span>${tab.label}</span>
+                        </button>
                     `).join('')}
-                </div>
+                </nav>
 
-                ${tabContentHtml}
+                <!-- منطقة محتوى التبويب النشط (قابلة للتمرير الانسيابي) -->
+                <div class="sb-tab-content-wrapper" id="sb-tab-content-area">
+                    ${tabContentHtml}
+                </div>
             </div>
         </aside>
         `;
     }
 }
+

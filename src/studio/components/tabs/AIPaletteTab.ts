@@ -39,14 +39,14 @@ export class AIPaletteTab {
 
                 <!-- أزرار التنقل السريع بين طرق التخصيص -->
                 <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px;">
-                    <a href="#section-ready-themes" class="sb-btn sb-btn-primary" style="justify-content:center; padding:10px 8px; font-size:0.82rem; text-decoration:none; font-weight:800;">
+                    <button type="button" class="sb-btn sb-btn-primary" style="justify-content:center; padding:10px 8px; font-size:0.82rem; font-weight:800;" onclick="document.getElementById('section-ready-themes')?.scrollIntoView({behavior:'smooth'})">
                         <i class="fas fa-swatchbook"></i>
                         <span>تصفح 20 ثيم جاهز 🎨</span>
-                    </a>
-                    <a href="#section-ai-generator" class="sb-btn sb-btn-outline" style="justify-content:center; padding:10px 8px; font-size:0.82rem; text-decoration:none; font-weight:800;">
+                    </button>
+                    <button type="button" class="sb-btn sb-btn-outline" style="justify-content:center; padding:10px 8px; font-size:0.82rem; font-weight:800;" onclick="document.getElementById('section-ai-generator')?.scrollIntoView({behavior:'smooth'})">
                         <i class="fas fa-wand-magic-sparkles" style="color:#A78BFA;"></i>
                         <span>المولد الذكي والتخصيص الحر ⚡</span>
-                    </a>
+                    </button>
                 </div>
             </div>
 
@@ -69,7 +69,7 @@ export class AIPaletteTab {
                     ${categories.map((cat, idx) => `
                         <button class="sb-badge-pill ${idx === 0 ? 'active' : ''}" 
                                 onclick="window.StudioUI.filterPresetCards('${cat}', this)"
-                                style="cursor:pointer; border:1px solid var(--sb-border); background:var(--sb-surface); color:var(--sb-text); padding:4px 10px; border-radius:999px; font-size:0.76rem; white-space:nowrap; transition:all 0.2s;">
+                                style="cursor:pointer; padding:5px 12px; font-size:0.78rem; white-space:nowrap; transition:all 0.2s;">
                             ${cat === 'الكل' ? '🌟 الكل (20)' : cat}
                         </button>
                     `).join('')}
@@ -84,7 +84,7 @@ export class AIPaletteTab {
                         
                         return `
                         <div class="sb-preset-theme-card" data-category="${p.category || 'عام'}" 
-                             style="border:1px solid ${isActive ? 'var(--sb-primary)' : 'var(--sb-border)'}; background:var(--sb-card); border-radius:14px; padding:12px 14px; position:relative; box-shadow:${isActive ? '0 0 0 2px var(--sb-primary)' : 'none'}; transition:all 0.2s;">
+                             style="content-visibility:auto; contain-intrinsic-size:0 160px; border:1px solid ${isActive ? 'var(--sb-primary)' : 'var(--sb-border)'}; background:var(--sb-card); border-radius:14px; padding:12px 14px; position:relative; box-shadow:${isActive ? '0 0 0 2px var(--sb-primary)' : 'none'}; transition:all 0.2s;">
                             
                             <!-- رأس الكرت -->
                             <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:6px;">

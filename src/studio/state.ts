@@ -27,6 +27,7 @@ export class StudioState {
     public merchantUserId: number = 0;
     public merchantPlanType: string = 'free';
     public isCloudSynced: boolean = false;
+    public isGuestMode: boolean = false;
 
     public mobileView: 'controls' | 'preview' = 'controls';
 
@@ -34,6 +35,7 @@ export class StudioState {
     private historyIndex: number = -1;
     private listeners: Listener[] = [];
     private debounceHistoryTimer: any = null;
+    private liveUpdateScheduled: boolean = false;
 
     private constructor() {
         this.config = JSON.parse(JSON.stringify(DEFAULT_STOREFRONT_CONFIG));
@@ -50,16 +52,21 @@ export class StudioState {
         this.extractMerchantAuth();
         this.loadInitialConfig();
         this.pushHistory();
-        this.fetchCloudConfig();
+        if (!this.isGuestMode) {
+            this.fetchCloudConfig();
+        }
     }
 
     /**
-     * التحقق من جلسة التاجر واستخراج هويته
+     * التحقق من جلسة التاجر واستخراج هويته مع دعم الوضع التجريبي
      */
     private extractMerchantAuth(): void {
         const token = localStorage.getItem('merchant_token') || sessionStorage.getItem('merchant_token');
         if (!token) {
-            window.location.replace('login.html?redirect=store-builder.html');
+            this.isGuestMode = true;
+            this.merchantUsername = 'demo_store';
+            this.merchantStoreName = 'متجر تجريبي';
+            this.merchantPlanType = 'premium';
             return;
         }
 
@@ -72,11 +79,15 @@ export class StudioState {
                 if (payload.exp && Date.now() >= payload.exp * 1000) {
                     localStorage.removeItem('merchant_token');
                     sessionStorage.removeItem('merchant_token');
-                    window.location.replace('login.html?redirect=store-builder.html&expired=1');
+                    this.isGuestMode = true;
+                    this.merchantUsername = 'demo_store';
+                    this.merchantStoreName = 'متجر تجريبي (جلسة منتهية)';
                     return;
                 }
                 if (payload.role !== 'merchant') {
-                    window.location.replace('login.html?redirect=store-builder.html&unauthorized=1');
+                    this.isGuestMode = true;
+                    this.merchantUsername = 'demo_store';
+                    this.merchantStoreName = 'متجر تجريبي';
                     return;
                 }
 
@@ -87,6 +98,7 @@ export class StudioState {
             }
         } catch (e) {
             console.error('Error decoding merchant token:', e);
+            this.isGuestMode = true;
         }
     }
 
@@ -279,23 +291,29 @@ export class StudioState {
     }
 
     public sendLiveUpdateToPreview(): void {
-        const iframe = document.getElementById('store-preview-frame') as HTMLIFrameElement;
-        if (iframe && iframe.contentWindow) {
-            iframe.contentWindow.postMessage({
-                type: 'NALSH_CONFIG_UPDATE',
-                config: this.config,
-                payload: this.config,
-                _preview_dark: this.isDarkPreview   // ← تزامن الوضع دائماً
-            }, '*');
+        if (this.liveUpdateScheduled) return;
+        this.liveUpdateScheduled = true;
 
-            try {
-                const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
-                if (iframeDoc) {
-                    iframeDoc.documentElement.classList.toggle('dark-mode', this.isDarkPreview);
-                    if (iframeDoc.body) iframeDoc.body.classList.toggle('dark-mode', this.isDarkPreview);
-                }
-            } catch (e) {}
-        }
+        requestAnimationFrame(() => {
+            this.liveUpdateScheduled = false;
+            const iframe = document.getElementById('store-preview-frame') as HTMLIFrameElement;
+            if (iframe && iframe.contentWindow) {
+                iframe.contentWindow.postMessage({
+                    type: 'NALSH_CONFIG_UPDATE',
+                    config: this.config,
+                    payload: this.config,
+                    _preview_dark: this.isDarkPreview
+                }, '*');
+
+                try {
+                    const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+                    if (iframeDoc) {
+                        iframeDoc.documentElement.classList.toggle('dark-mode', this.isDarkPreview);
+                        if (iframeDoc.body) iframeDoc.body.classList.toggle('dark-mode', this.isDarkPreview);
+                    }
+                } catch (e) {}
+            }
+        });
     }
 
     /**

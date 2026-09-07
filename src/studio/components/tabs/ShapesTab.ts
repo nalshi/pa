@@ -82,15 +82,15 @@ export class ShapesTab {
                         <label class="sb-field-label">نمط وشكل الأزرار (Button Style)</label>
                         <div class="sb-segmented-control">
                             <button class="sb-seg-btn ${(sh.button_style === 'rounded' || !sh.button_style) ? 'active' : ''}" 
-                                    onclick="window.StudioUI.handleShapeChange('button_style', 'rounded'); window.StudioUI.handleShapeChange('button_radius', '14px');">
+                                    onclick="window.StudioUI.handleButtonStyleChange('rounded', '14px')">
                                 🔘 منحني (Rounded)
                             </button>
                             <button class="sb-seg-btn ${sh.button_style === 'pill' ? 'active' : ''}" 
-                                    onclick="window.StudioUI.handleShapeChange('button_style', 'pill'); window.StudioUI.handleShapeChange('button_radius', '9999px');">
+                                    onclick="window.StudioUI.handleButtonStyleChange('pill', '9999px')">
                                 💊 كبسولي (Pill)
                             </button>
                             <button class="sb-seg-btn ${sh.button_style === 'square' ? 'active' : ''}" 
-                                    onclick="window.StudioUI.handleShapeChange('button_style', 'square'); window.StudioUI.handleShapeChange('button_radius', '6px');">
+                                    onclick="window.StudioUI.handleButtonStyleChange('square', '6px')">
                                 ⬛ مربع (Square)
                             </button>
                         </div>

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * NavigationTab Component v1.0
  */
 
@@ -37,16 +37,16 @@ export class NavigationTab {
             const item = bottomItems[idx];
             const isFirst = idx === 0;
             const isLast = idx === bottomItems.length - 1;
-            itemsHtml += `<div draggable="true" ondragstart="window.StudioUI.handleNavBottomItemDragStart('${item.id}')" ondragover="event.preventDefault()" ondrop="window.StudioUI.handleNavBottomItemDrop('${item.id}')" style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--sb-surface,#f8f9fb);border:1px solid var(--sb-border,#e8eaed);border-radius:12px;margin-bottom:8px;box-shadow:0 2px 8px rgba(15,23,42,0.04);${!item.visible ? 'opacity:0.55;' : ''}">
-               <div title="اسحب لإعادة ترتيب العنصر" style="width:38px;height:38px;border-radius:10px;background:linear-gradient(135deg,var(--sb-primary,#6366F1),var(--sb-primary-strong,#4F46E5));display:flex;align-items:center;justify-content:center;color:#fff;font-size:0.9rem;flex-shrink:0;cursor:grab;box-shadow:0 6px 18px rgba(99,102,241,0.18);"><i class="fas ${item.icon}"></i></div>
-                <div style="display:flex;flex-direction:column;gap:2px;flex-shrink:0;">
-                    <button onclick="window.StudioUI.handleNavBottomItemMove('${item.id}','up')" ${isFirst ? 'disabled' : ''} style="background:var(--sb-bg,#fff);border:1px solid var(--sb-border,#e8eaed);border-radius:5px;width:22px;height:20px;cursor:pointer;font-size:0.65rem;display:flex;align-items:center;justify-content:center;${isFirst ? 'opacity:0.3;cursor:not-allowed;' : ''}">↑</button>
-                    <button onclick="window.StudioUI.handleNavBottomItemMove('${item.id}','down')" ${isLast ? 'disabled' : ''} style="background:var(--sb-bg,#fff);border:1px solid var(--sb-border,#e8eaed);border-radius:5px;width:22px;height:20px;cursor:pointer;font-size:0.65rem;display:flex;align-items:center;justify-content:center;${isLast ? 'opacity:0.3;cursor:not-allowed;' : ''}">↓</button>
+            itemsHtml += `<div draggable="true" ondragstart="window.StudioUI.handleNavBottomItemDragStart('${item.id}')" ondragover="event.preventDefault()" ondrop="window.StudioUI.handleNavBottomItemDrop('${item.id}')" style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--sb-card);border:1px solid var(--sb-border);border-radius:12px;margin-bottom:8px;box-shadow:0 2px 8px rgba(0,0,0,0.2);${!item.visible ? 'opacity:0.55;' : ''}">
+               <div title="اسحب لإعادة ترتيب العنصر" style="width:38px;height:38px;border-radius:10px;background:var(--sb-primary-gradient);display:flex;align-items:center;justify-content:center;color:#fff;font-size:0.95rem;flex-shrink:0;cursor:grab;box-shadow:0 4px 12px var(--sb-primary-glow);"><i class="fas ${item.icon}"></i></div>
+                <div style="display:flex;flex-direction:column;gap:3px;flex-shrink:0;">
+                    <button onclick="window.StudioUI.handleNavBottomItemMove('${item.id}','up')" ${isFirst ? 'disabled' : ''} style="background:var(--sb-surface);color:var(--sb-text);border:1px solid var(--sb-border);border-radius:6px;width:28px;height:24px;cursor:pointer;font-size:0.75rem;display:flex;align-items:center;justify-content:center;${isFirst ? 'opacity:0.3;cursor:not-allowed;' : ''}" title="تحريك لأعلى">↑</button>
+                    <button onclick="window.StudioUI.handleNavBottomItemMove('${item.id}','down')" ${isLast ? 'disabled' : ''} style="background:var(--sb-surface);color:var(--sb-text);border:1px solid var(--sb-border);border-radius:6px;width:28px;height:24px;cursor:pointer;font-size:0.75rem;display:flex;align-items:center;justify-content:center;${isLast ? 'opacity:0.3;cursor:not-allowed;' : ''}" title="تحريك لأسفل">↓</button>
                 </div>
                 <div style="flex:1;display:flex;flex-direction:column;gap:6px;">
                     <div style="display:flex;align-items:center;gap:6px;">
-                        <span style="font-size:0.68rem;color:var(--sb-muted,#6b7280);display:inline-flex;align-items:center;gap:4px;letter-spacing:0.02em;">⋮⋮ <span>اسحب</span></span>
-                        <input type="text" class="sb-input" value="${item.label}" style="font-size:0.82rem;padding:5px 8px;flex:1;min-width:60px;" onchange="window.StudioUI.handleNavBottomItemChange('${item.id}','label',this.value)" placeholder="الاسم">
+                        <span style="font-size:0.68rem;color:var(--sb-muted);display:inline-flex;align-items:center;gap:4px;letter-spacing:0.02em;">⋮⋮ <span>رتب</span></span>
+                        <input type="text" class="sb-input" value="${item.label}" style="font-size:0.82rem;padding:6px 8px;flex:1;min-width:60px;" onchange="window.StudioUI.handleNavBottomItemChange('${item.id}','label',this.value)" placeholder="الاسم">
                         ${renderIconSelect(item.id, item.icon)}
                     </div>
                 </div>
@@ -66,9 +66,9 @@ export class NavigationTab {
             const isActive = topBar.logo_icon === ic;
             logoIconsHtml += `<button title="${lbl}" onclick="window.StudioUI.handleNavTopBarChange('logo_icon','${ic}')"
                 style="width:44px;height:44px;border-radius:12px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;cursor:pointer;
-                border:2px solid ${isActive ? 'var(--sb-primary,#6366F1)' : 'var(--sb-border,#e8eaed)'};
-                background:${isActive ? 'rgba(99,102,241,0.12)' : 'var(--sb-surface,#f8f9fb)'};
-                font-size:1.1rem;color:${isActive ? 'var(--sb-primary,#6366F1)' : 'var(--sb-muted,#6b7280)'};"><i class="fas ${ic}"></i></button>`;
+                border:2px solid ${isActive ? 'var(--sb-primary)' : 'var(--sb-border)'};
+                background:${isActive ? 'rgba(99,102,241,0.18)' : 'var(--sb-surface)'};
+                font-size:1.1rem;color:${isActive ? 'var(--sb-primary)' : 'var(--sb-muted)'};"><i class="fas ${ic}"></i></button>`;
         }
 
         const presetButtons = Object.keys(NAVIGATION_PRESETS).map((key) => `

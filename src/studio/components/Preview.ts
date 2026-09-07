@@ -28,7 +28,7 @@ export class Preview {
                 </button>
             </div>
             <div class="sb-preview-wrapper ${deviceClass}" id="preview-wrapper">
-                <div class="sb-device-header ${currentDevice === 'desktop' ? 'hidden' : ''}">
+                <div class="sb-device-header ${currentDevice === 'desktop' ? 'hidden' : ''}" id="preview-device-header">
                     <div class="sb-device-speaker"></div>
                     <div class="sb-device-camera"></div>
                 </div>
