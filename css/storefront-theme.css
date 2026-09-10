@@ -208,6 +208,44 @@ h1, h2, h3, h4, h5, h6,
   color: var(--theme-primary) !important;
 }
 
+/* أنماط الأشرطة القابلة للتخصيص من الاستوديو */
+body[data-navbar-style="glass"] .header-container,
+body[data-navbar-style="glass"] .navbar {
+  background: color-mix(in srgb, var(--theme-navbar-bg) 78%, transparent) !important;
+  border-color: color-mix(in srgb, var(--theme-navbar-text) 12%, transparent) !important;
+  box-shadow: 0 10px 30px color-mix(in srgb, var(--theme-primary) 10%, transparent) !important;
+  backdrop-filter: blur(18px) saturate(140%);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+}
+
+body[data-navbar-style="floating"] .header-container {
+  top: 10px;
+  left: 12px;
+  right: 12px;
+  border: 1px solid var(--theme-border) !important;
+  border-radius: var(--theme-topbar-radius, 18px);
+  border-width: var(--theme-topbar-border-width, 1px);
+  box-shadow: 0 14px 30px color-mix(in srgb, var(--theme-text-primary) 12%, transparent) !important;
+  overflow: hidden;
+}
+
+body[data-navbar-style="floating"] .navbar {
+  border-bottom: 0;
+}
+
+body[data-navbar-style="neon"] .header-container,
+body[data-navbar-style="neon"] .navbar {
+  background: var(--theme-navbar-bg) !important;
+  border-color: color-mix(in srgb, var(--theme-primary) 45%, transparent) !important;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--theme-primary) 18%, transparent),
+    0 8px 28px color-mix(in srgb, var(--theme-primary) 20%, transparent) !important;
+}
+
+body[data-navbar-style="neon"] .logo i,
+body[data-navbar-style="neon"] .nav-icon-btn:hover {
+  filter: drop-shadow(0 0 8px var(--theme-primary));
+}
+
 /* ================================================
    3. شريط البحث (Clean Search Bar)
    ================================================ */
@@ -360,6 +398,132 @@ h1, h2, h3, h4, h5, h6,
   color: var(--theme-bottom-nav-active) !important;
 }
 
+.mobile-bar .nav-item,
+.isolated-bottom-bar .nav-item {
+  border-radius: var(--theme-bottom-item-radius, 999px);
+  gap: var(--theme-bottom-item-gap, 8px);
+}
+
+.mobile-bar .nav-item .nav-icon-container,
+.isolated-bottom-bar .nav-item .nav-icon-container {
+  font-size: var(--theme-bottom-icon-size, 1.2rem);
+}
+
+body[data-bottom-bar-style="glass"] .mobile-bar,
+body[data-bottom-bar-style="glass"] .isolated-bottom-bar,
+body[data-bottom-bar-style="glass"] .bottom-nav-bar {
+  background: color-mix(in srgb, var(--theme-bottom-nav-bg) 78%, transparent) !important;
+  border-color: color-mix(in srgb, var(--theme-bottom-nav-active) 16%, transparent) !important;
+  backdrop-filter: blur(18px) saturate(140%);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+}
+
+body[data-bottom-bar-style="floating"] .mobile-bar,
+body[data-bottom-bar-style="floating"] .isolated-bottom-bar,
+body[data-bottom-bar-style="floating"] .bottom-nav-bar {
+  left: 12px;
+  right: 12px;
+  bottom: max(10px, env(safe-area-inset-bottom));
+  width: auto;
+  border: var(--theme-bottom-bar-border-width, 1px) solid var(--theme-border) !important;
+  border-radius: var(--theme-bottom-bar-radius, 22px);
+  box-shadow: 0 16px 36px color-mix(in srgb, var(--theme-text-primary) 16%, transparent) !important;
+}
+
+body[data-bottom-bar-style="floating"] .nav-item.active {
+  background: color-mix(in srgb, var(--theme-bottom-nav-active) 12%, transparent);
+  border-radius: 14px;
+}
+
+@media (min-width: 768px) {
+  body[data-bottom-bar-layout="wide"] .mobile-bar,
+  body[data-bottom-bar-layout="wide"] .isolated-bottom-bar {
+    border-radius: min(var(--theme-bottom-bar-radius, 22px), 28px) !important;
+  }
+
+  body[data-bottom-bar-layout="wide"] .mobile-bar .nav-item,
+  body[data-bottom-bar-layout="wide"] .isolated-bottom-bar .nav-item {
+    flex: 1 1 0 !important;
+    justify-content: center;
+  }
+}
+
+body[data-bottom-bar-style="neon"] .mobile-bar,
+body[data-bottom-bar-style="neon"] .isolated-bottom-bar,
+body[data-bottom-bar-style="neon"] .bottom-nav-bar {
+  background: var(--theme-bottom-nav-bg) !important;
+  border-width: var(--theme-bottom-bar-border-width, 1px) !important;
+  border-color: color-mix(in srgb, var(--theme-bottom-nav-active) 45%, transparent) !important;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--theme-bottom-nav-active) 16%, transparent),
+    0 12px 32px color-mix(in srgb, var(--theme-bottom-nav-active) 20%, transparent) !important;
+}
+
+body[data-bottom-bar-style="neon"] .nav-item.active .nav-icon-container {
+  filter: drop-shadow(0 0 8px var(--theme-bottom-nav-active));
+}
+
+body[data-navbar-style="minimal"] .header-container,
+body[data-navbar-style="minimal"] .navbar {
+  background: var(--theme-navbar-bg, var(--bg-card)) !important;
+  border-color: transparent !important;
+  box-shadow: 0 4px 16px color-mix(in srgb, var(--theme-text-primary, #0f172a) 8%, transparent) !important;
+}
+
+body[data-navbar-style="minimal"] .icon-btn {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+
+body[data-navbar-style="island"] .header-container {
+  top: max(8px, env(safe-area-inset-top)) !important;
+  left: clamp(8px, 2vw, 24px) !important;
+  right: clamp(8px, 2vw, 24px) !important;
+  border-radius: clamp(16px, 3vw, 28px);
+  border: 1px solid color-mix(in srgb, var(--theme-primary, var(--primary)) 18%, transparent) !important;
+  box-shadow: 0 12px 32px color-mix(in srgb, var(--theme-text-primary, #0f172a) 12%, transparent) !important;
+}
+
+body[data-navbar-style="island"] .navbar {
+  border-bottom: 0;
+}
+
+body[data-bottom-bar-style="minimal"] .mobile-bar,
+body[data-bottom-bar-style="minimal"] .isolated-bottom-bar {
+  background: var(--theme-bottom-nav-bg, var(--bg-card)) !important;
+  border-color: transparent !important;
+  box-shadow: 0 -4px 18px color-mix(in srgb, var(--theme-text-primary, #0f172a) 8%, transparent) !important;
+}
+
+body[data-bottom-bar-style="minimal"] .nav-item.active {
+  background: color-mix(in srgb, var(--theme-bottom-nav-active, var(--primary)) 10%, transparent);
+}
+
+body[data-bottom-bar-style="island"] .mobile-bar,
+body[data-bottom-bar-style="island"] .isolated-bottom-bar {
+  left: max(8px, env(safe-area-inset-left)) !important;
+  right: max(8px, env(safe-area-inset-right)) !important;
+  width: auto !important;
+  min-width: 0 !important;
+  transform: none !important;
+  border-radius: clamp(18px, 4vw, 30px) !important;
+  border: 1px solid color-mix(in srgb, var(--theme-bottom-nav-active, var(--primary)) 18%, transparent) !important;
+  box-shadow: 0 12px 30px color-mix(in srgb, var(--theme-text-primary, #0f172a) 14%, transparent) !important;
+}
+
+body[data-bottom-bar-style="island"] .nav-item.active {
+  background: color-mix(in srgb, var(--theme-bottom-nav-active, var(--primary)) 14%, transparent);
+}
+
+@media (max-width: 380px) {
+  .mobile-bar .nav-item,
+  .isolated-bottom-bar .nav-item {
+    min-width: 0;
+    padding-inline: 4px;
+    font-size: 0.64rem;
+  }
+}
+
 /* ================================================
    6. كروت وبطاقات المنتجات (Clean Product Cards)
    ================================================ */
@@ -375,6 +539,65 @@ h1, h2, h3, h4, h5, h6,
   border: none !important;
   box-shadow: var(--theme-card-shadow) !important;
   transition: transform 0.2s ease-out, box-shadow 0.2s ease-out;
+}
+
+.product-card-compact .compact-details {
+  padding: 12px 13px 13px;
+}
+
+.product-card-compact .p-title {
+  line-height: 1.45;
+  min-height: 2.9em;
+}
+
+.product-card-compact .compact-img-wrapper {
+  aspect-ratio: 1 / 1.08;
+}
+
+.product-card-compact .image-container-wrapper {
+  isolation: isolate;
+}
+
+.product-card-compact .image-container-wrapper::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(255,255,255,0.14), transparent 42%, rgba(15,23,42,0.08));
+  pointer-events: none;
+  opacity: 0.65;
+  transition: opacity 0.25s ease;
+}
+
+.product-card-compact:hover .image-container-wrapper::after {
+  opacity: 0.95;
+}
+
+body[data-card-style="elevated"] .product-card-compact,
+body[data-card-style="elevated"] .fast-card {
+  box-shadow: 0 10px 24px color-mix(in srgb, var(--theme-text-primary) 9%, transparent) !important;
+}
+
+body[data-card-style="elevated"] .product-card-compact:hover,
+body[data-card-style="elevated"] .fast-card:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 18px 34px color-mix(in srgb, var(--theme-primary) 16%, transparent) !important;
+}
+
+body[data-card-style="bordered"] .product-card-compact:hover,
+body[data-card-style="bordered"] .fast-card:hover {
+  border-color: color-mix(in srgb, var(--theme-primary) 40%, var(--theme-border)) !important;
+}
+
+body[data-card-style="glass"] .product-card-compact .compact-details,
+body[data-card-style="glass"] .fast-card .compact-details {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--theme-card-bg) 82%, transparent), var(--theme-card-bg));
+}
+
+@media (hover: none) {
+  .product-card-compact:hover,
+  body[data-card-style="elevated"] .product-card-compact:hover {
+    transform: none;
+  }
 }
 
 /* أنماط الكروت الاختيارية فقط عند تفعيلها بالاستوديو */
@@ -489,6 +712,38 @@ body[data-card-hover="zoom"] .bento-card:hover {
   width: 155px !important;
   min-width: 155px !important;
   max-width: 180px !important;
+}
+
+@media (max-width: 767px) {
+  body[data-navbar-style="floating"] .header-container {
+    top: 6px;
+    left: 8px;
+    right: 8px;
+    border-radius: 16px;
+  }
+
+  .product-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: clamp(10px, 2.8vw, 14px) !important;
+  }
+
+  .product-card-compact .compact-details {
+    padding: 10px;
+  }
+
+  .product-card-compact .p-title {
+    font-size: clamp(0.8rem, 3.4vw, 0.95rem);
+  }
+
+  .product-card-compact .price-row-mini {
+    gap: 6px;
+  }
+
+  .product-card-compact .modern-add-cart-btn-mini {
+    width: 34px;
+    height: 34px;
+    min-width: 34px;
+  }
 }
 
 @media (min-width: 768px) {

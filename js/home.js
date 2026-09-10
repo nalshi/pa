@@ -165,13 +165,18 @@ window.HomeUI = {
         this.currentCatIndex = 0;
         this.activeTabCategory = null;
 
-        // تطبيق إعدادات المتجر إذا كانت موجودة في بيانات المتجر
-        if (this.storeData && this.storeData.storefront_config) {
-            // ✅ نُحدّث دائماً بالكونفيغ القادم من CDN (الأحدث) حتى لو كان window.currentStorefrontConfig موجوداً مسبقاً
-            window.currentStorefrontConfig = this.storeData.storefront_config;
+        // أثناء معاينة قالب، تكون الإعدادات المركبة من ملف JSON أعلى أولوية من config المتجر المنشور.
+        const isTemplatePreview = new URLSearchParams(window.location.search).has('template_preview');
+        const activeConfig = isTemplatePreview && window.currentStorefrontConfig
+            ? window.currentStorefrontConfig
+            : this.storeData?.storefront_config;
+        if (activeConfig) {
+            if (!isTemplatePreview) {
+                window.currentStorefrontConfig = activeConfig;
+            }
             try {
                 if (typeof window.initStorefront === 'function') {
-                    window.initStorefront(this.storeData.storefront_config, this.storeData);
+                    window.initStorefront(activeConfig, this.storeData);
                     return;
                 }
             } catch (e) {
@@ -447,13 +452,7 @@ window.HomeUI = {
                     </div>
                 </div>
 
-                <div class="modern-search-wrapper">
-                    <div class="search-input-box">
-                        <i class="fas fa-search search-icon"></i>
-                        <input type="text" class="modern-search-input" placeholder="ابحث عن منتج داخل المتجر..." oninput="HomeUI.filterProducts(this.value)">
-                    </div>
-                </div>
-            </div>
+               
         `;
     },
 

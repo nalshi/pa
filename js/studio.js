@@ -2431,11 +2431,14 @@ var StudioState = class _StudioState {
   merchantUserId = 0;
   merchantPlanType = "free";
   isCloudSynced = false;
+  isGuestMode = false;
   mobileView = "controls";
+  storeBaseConfig = null;
   historyStack = [];
   historyIndex = -1;
   listeners = [];
   debounceHistoryTimer = null;
+  liveUpdateScheduled = false;
   constructor() {
     this.config = JSON.parse(JSON.stringify(DEFAULT_STOREFRONT_CONFIG));
   }
@@ -2449,18 +2452,17 @@ var StudioState = class _StudioState {
     this.extractMerchantAuth();
     this.loadInitialConfig();
     this.pushHistory();
-    this.fetchCloudConfig();
   }
   /**
-   * التحقق من جلسة التاجر واستخراج هويته
+   * التحقق من جلسة التاجر واستخراج هويته مع دعم الوضع التجريبي
    */
   extractMerchantAuth() {
     const token = localStorage.getItem("merchant_token") || sessionStorage.getItem("merchant_token");
     if (!token) {
-      console.log("\u2139\uFE0F \u062A\u0634\u063A\u064A\u0644 \u0627\u0644\u0627\u0633\u062A\u0648\u062F\u064A\u0648 \u0641\u064A \u0648\u0636\u0639 \u0627\u0644\u0645\u0639\u0627\u064A\u0646\u0629 \u0627\u0644\u0633\u0631\u064A\u0639\u0629.");
-      this.merchantUsername = "store";
-      this.merchantStoreName = "\u0645\u062A\u062C\u0631\u064A";
-      this.merchantPlanType = "pro";
+      this.isGuestMode = true;
+      this.merchantUsername = "demo_store";
+      this.merchantStoreName = "\u0645\u062A\u062C\u0631 \u062A\u062C\u0631\u064A\u0628\u064A";
+      this.merchantPlanType = "premium";
       return;
     }
     this.merchantToken = token;
@@ -2469,7 +2471,18 @@ var StudioState = class _StudioState {
       if (parts.length === 3) {
         const payload = JSON.parse(atob(parts[1].replace(/-/g, "+").replace(/_/g, "/")));
         if (payload.exp && Date.now() >= payload.exp * 1e3) {
-          console.warn("\u26A0\uFE0F \u062C\u0644\u0633\u0629 \u0645\u0646\u062A\u0647\u064A\u0629\u060C \u0627\u0644\u0627\u0633\u062A\u0645\u0631\u0627\u0631 \u0628\u0648\u0636\u0639 \u0627\u0644\u0645\u0639\u0627\u064A\u0646\u0629 \u0627\u0644\u0645\u062D\u0644\u064A\u0629");
+          localStorage.removeItem("merchant_token");
+          sessionStorage.removeItem("merchant_token");
+          this.isGuestMode = true;
+          this.merchantUsername = "demo_store";
+          this.merchantStoreName = "\u0645\u062A\u062C\u0631 \u062A\u062C\u0631\u064A\u0628\u064A (\u062C\u0644\u0633\u0629 \u0645\u0646\u062A\u0647\u064A\u0629)";
+          return;
+        }
+        if (payload.role !== "merchant") {
+          this.isGuestMode = true;
+          this.merchantUsername = "demo_store";
+          this.merchantStoreName = "\u0645\u062A\u062C\u0631 \u062A\u062C\u0631\u064A\u0628\u064A";
+          return;
         }
         this.merchantUsername = payload.username || "store";
         this.merchantStoreName = payload.store_name || payload.username || "\u0645\u062A\u062C\u0631\u064A";
@@ -2477,57 +2490,8 @@ var StudioState = class _StudioState {
         this.merchantPlanType = payload.plan_type || "free";
       }
     } catch (e) {
-      console.warn("Error decoding merchant token, continuing in preview mode:", e);
-      this.merchantUsername = "store";
-      this.merchantStoreName = "\u0645\u062A\u062C\u0631\u064A";
-    }
-  }
-  /**
-   * جلب الإعدادات السحابية للتاجر عبر السيرفر
-   */
-  async fetchCloudConfig() {
-    if (!this.merchantToken) return;
-    try {
-      const res = await fetch(WORKER_API_URL, {
-        method: "POST",
-        cache: "no-store",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": "Bearer " + this.merchantToken
-        },
-        body: JSON.stringify({
-          action: "get_storefront_config",
-          username: this.merchantUsername,
-          merchant_id: this.merchantUserId
-        })
-      });
-      if (res.status === 401 || res.status === 403) {
-        console.warn("\u26A0\uFE0F \u0644\u0627 \u064A\u0645\u0643\u0646 \u062C\u0644\u0628 \u0627\u0644\u0625\u0639\u062F\u0627\u062F\u0627\u062A \u0627\u0644\u0633\u062D\u0627\u0628\u064A\u0629\u060C \u0627\u0644\u0627\u0633\u062A\u0645\u0631\u0627\u0631 \u0628\u0627\u0644\u0645\u0633\u0648\u062F\u0629 \u0627\u0644\u0645\u062D\u0644\u064A\u0629");
-        return;
-      }
-      if (res.ok) {
-        const json = await res.json();
-        const cloudConfig = json?.data?.config || json?.config;
-        if (cloudConfig && typeof cloudConfig === "object") {
-          const { sanitizedConfig } = sanitizeStorefrontConfig(cloudConfig, this.merchantPlanType);
-          this.config = sanitizedConfig;
-          if (json.data?.store_info?.store_name) {
-            this.merchantStoreName = json.data.store_info.store_name;
-          }
-          if (json.data?.tier) {
-            this.merchantPlanType = json.data.tier;
-          }
-          this.isCloudSynced = true;
-          try {
-            localStorage.setItem(`nalsh_storefront_config_${this.merchantUsername}`, JSON.stringify(this.config));
-          } catch (e) {
-          }
-          this.sendLiveUpdateToPreview();
-          this.notify("full_sync");
-        }
-      }
-    } catch (err) {
-      console.warn("\u26A0\uFE0F Could not fetch remote config, using local draft:", err);
+      console.error("Error decoding merchant token:", e);
+      this.isGuestMode = true;
     }
   }
   subscribe(fn) {
@@ -2646,24 +2610,28 @@ var StudioState = class _StudioState {
     this.notify("full_sync");
   }
   sendLiveUpdateToPreview() {
-    const iframe = document.getElementById("store-preview-frame");
-    if (iframe && iframe.contentWindow) {
-      iframe.contentWindow.postMessage({
-        type: "NALSH_CONFIG_UPDATE",
-        config: this.config,
-        payload: this.config,
-        _preview_dark: this.isDarkPreview
-        // ← تزامن الوضع دائماً
-      }, "*");
-      try {
-        const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
-        if (iframeDoc) {
-          iframeDoc.documentElement.classList.toggle("dark-mode", this.isDarkPreview);
-          if (iframeDoc.body) iframeDoc.body.classList.toggle("dark-mode", this.isDarkPreview);
+    if (this.liveUpdateScheduled) return;
+    this.liveUpdateScheduled = true;
+    requestAnimationFrame(() => {
+      this.liveUpdateScheduled = false;
+      const iframe = document.getElementById("store-preview-frame");
+      if (iframe && iframe.contentWindow) {
+        iframe.contentWindow.postMessage({
+          type: "NALSH_CONFIG_UPDATE",
+          config: this.config,
+          payload: this.config,
+          _preview_dark: this.isDarkPreview
+        }, "*");
+        try {
+          const iframeDoc = iframe.contentDocument || iframe.contentWindow.document;
+          if (iframeDoc) {
+            iframeDoc.documentElement.classList.toggle("dark-mode", this.isDarkPreview);
+            if (iframeDoc.body) iframeDoc.body.classList.toggle("dark-mode", this.isDarkPreview);
+          }
+        } catch (e) {
         }
-      } catch (e) {
       }
-    }
+    });
   }
   /**
    * تحقن CSS مباشرة في الـ iframe لتغيير أبعاد الكروت بدون أي لاغ.
@@ -2752,16 +2720,81 @@ var StudioState = class _StudioState {
       }
     }
   }
-  loadInitialConfig() {
+  async loadInitialConfig() {
+    let hasLocalDraft = false;
     try {
-      const saved = localStorage.getItem(`nalsh_storefront_config_${this.merchantUsername}`) || localStorage.getItem("nalsh_storefront_config_v2") || localStorage.getItem("nalsh_storefront_config");
+      const saved = localStorage.getItem(`nalsh_storefront_config_${this.merchantUsername}`);
       if (saved) {
         const parsed = JSON.parse(saved);
-        const { sanitizedConfig } = sanitizeStorefrontConfig(parsed, this.merchantPlanType);
-        this.config = sanitizedConfig;
+        if (parsed && typeof parsed === "object") {
+          const { sanitizedConfig } = sanitizeStorefrontConfig(parsed, this.merchantPlanType);
+          this.config = sanitizedConfig;
+          this.storeBaseConfig = sanitizedConfig;
+          hasLocalDraft = true;
+        }
       }
     } catch (e) {
     }
+    if (!hasLocalDraft) {
+      try {
+        const assetUrl = `${WORKER_API_URL}stores/${encodeURIComponent(this.merchantUsername)}/storefront_config.json`;
+        const res = await fetch(`${assetUrl}?v=${Date.now()}`, { cache: "no-store" });
+        if (res.ok) {
+          const json = await res.json();
+          if (json && typeof json === "object") {
+            const { sanitizedConfig } = sanitizeStorefrontConfig(json, this.merchantPlanType);
+            this.config = sanitizedConfig;
+            this.storeBaseConfig = sanitizedConfig;
+            this.sendLiveUpdateToPreview();
+            this.notify("full_sync");
+          }
+        }
+      } catch (err) {
+        console.warn(`[Studio] \u062A\u0639\u0630\u0631 \u062A\u062D\u0645\u064A\u0644 \u0625\u0639\u062F\u0627\u062F\u0627\u062A \u0627\u0644\u0645\u062A\u062C\u0631 ${this.merchantUsername} \u0645\u0646 \u0645\u0633\u0627\u0631\u0647 \u0627\u0644\u0645\u0646\u0634\u0648\u0631.`, err);
+      }
+    }
+  }
+  async buildPublishConfig() {
+    let baseConfig = this.storeBaseConfig || this.config;
+    try {
+      const assetUrl = `${WORKER_API_URL}stores/${encodeURIComponent(this.merchantUsername)}/storefront_config.json`;
+      const response = await fetch(`${assetUrl}?v=${Date.now()}`, { cache: "no-store" });
+      if (response.ok) {
+        const remoteConfig = await response.json();
+        if (remoteConfig && typeof remoteConfig === "object") {
+          baseConfig = remoteConfig;
+        }
+      }
+    } catch (error) {
+      console.warn("[Studio] \u062A\u0639\u0630\u0631 \u062A\u062D\u062F\u064A\u062B \u0625\u0639\u062F\u0627\u062F\u0627\u062A \u0627\u0644\u0645\u062A\u062C\u0631 \u0642\u0628\u0644 \u0627\u0644\u0646\u0634\u0631\u060C \u0633\u064A\u062A\u0645 \u0627\u0633\u062A\u062E\u062F\u0627\u0645 \u0622\u062E\u0631 \u0646\u0633\u062E\u0629 \u0645\u062A\u0627\u062D\u0629.", error);
+    }
+    const designConfig = JSON.parse(JSON.stringify(this.config));
+    const result = JSON.parse(JSON.stringify(baseConfig || {}));
+    this.mergeConfig(result, designConfig);
+    const base = baseConfig;
+    if (base?.store_identity !== void 0 && JSON.stringify(designConfig.store_identity || {}) === JSON.stringify(base.store_identity)) {
+      result.store_identity = JSON.parse(JSON.stringify(base.store_identity));
+    }
+    const designPhone = designConfig.marketing?.whatsapp_floating?.phone;
+    if (base?.marketing?.whatsapp_floating?.phone !== void 0 && (!designPhone || designPhone === base.marketing.whatsapp_floating.phone)) {
+      result.marketing = result.marketing || {};
+      result.marketing.whatsapp_floating = result.marketing.whatsapp_floating || {};
+      result.marketing.whatsapp_floating.phone = base.marketing.whatsapp_floating.phone;
+    }
+    const { sanitizedConfig } = sanitizeStorefrontConfig(result, this.merchantPlanType);
+    this.storeBaseConfig = sanitizedConfig;
+    this.config = sanitizedConfig;
+    return sanitizedConfig;
+  }
+  mergeConfig(target, source) {
+    Object.entries(source || {}).forEach(([key, value]) => {
+      if (value && typeof value === "object" && !Array.isArray(value)) {
+        if (!target[key] || typeof target[key] !== "object" || Array.isArray(target[key])) target[key] = {};
+        this.mergeConfig(target[key], value);
+      } else {
+        target[key] = value;
+      }
+    });
   }
 };
 var studioState = StudioState.getInstance();
@@ -2769,82 +2802,106 @@ var studioState = StudioState.getInstance();
 // src/studio/components/Topbar.ts
 var Topbar = class {
   static render() {
-    const { currentDevice, isDarkPreview, merchantUsername } = studioState;
+    const { isDarkPreview, merchantUsername, isGuestMode } = studioState;
     const canUndo = studioState.canUndo();
     const canRedo = studioState.canRedo();
     return `
-        <header class="sb-topbar">
+        <header class="sb-topbar" id="sb-app-topbar">
+            <!-- \u0627\u0644\u0637\u0631\u0641 \u0627\u0644\u0623\u064A\u0645\u0646: \u0627\u0644\u0631\u062C\u0648\u0639 \u0648\u0627\u0644\u0634\u0639\u0627\u0631 \u0648\u0627\u0644\u0627\u0633\u0645 -->
             <div class="sb-topbar-start">
-                <a href="merchant-app.html" class="sb-btn-back">
+                <a href="merchant-app.html" class="sb-btn-back" title="\u0627\u0644\u0639\u0648\u062F\u0629 \u0625\u0644\u0649 \u0644\u0648\u062D\u0629 \u062A\u062D\u0643\u0645 \u0627\u0644\u062A\u0627\u062C\u0631">
                     <i class="fas fa-arrow-right"></i>
                     <span>\u0644\u0648\u062D\u0629 \u0627\u0644\u062A\u0627\u062C\u0631</span>
                 </a>
+
                 <div class="sb-store-badge">
-                    <div class="pulse-indicator"></div>
+                    <div class="pulse-indicator" style="${isGuestMode ? "background:#F59E0B;" : ""}"></div>
                     <i class="fas fa-store" style="color:var(--sb-primary);"></i>
                     <div class="sb-store-meta">
                         <span id="ui-merchant-name">${studioState.merchantStoreName || studioState.merchantUsername}</span>
                         <small>@${studioState.merchantUsername}</small>
                     </div>
-                    <span class="sb-beta-tag"><i class="fas fa-palette"></i> \u0645\u062E\u0635\u0635</span>
+                    ${isGuestMode ? '<span class="sb-beta-tag" style="background:rgba(245,158,11,0.18); color:#F59E0B; border:1px solid rgba(245,158,11,0.3);"><i class="fas fa-eye"></i> \u0648\u0636\u0639 \u062A\u062C\u0631\u064A\u0628\u064A</span>' : '<span class="sb-beta-tag"><i class="fas fa-palette"></i> \u0645\u062E\u0635\u0635</span>'}
                 </div>
+
                 <a href="index.html?store=${encodeURIComponent(studioState.merchantUsername)}" target="_blank" class="sb-btn sb-btn-ghost hide-mobile" title="\u0641\u062A\u062D \u0648\u0627\u062C\u0647\u0629 \u0627\u0644\u0645\u062A\u062C\u0631 \u0627\u0644\u062D\u0627\u0644\u064A\u0629 \u0641\u064A \u062A\u0628\u0648\u064A\u0628 \u062C\u062F\u064A\u062F" style="color:#38BDF8; text-decoration:none; font-size:0.82rem; font-weight:700;">
                     <i class="fas fa-external-link-alt"></i>
                     <span>\u0632\u064A\u0627\u0631\u0629 \u0627\u0644\u0645\u062A\u062C\u0631</span>
                 </a>
             </div>
 
-            <!-- \u0623\u062C\u0647\u0632\u0629 \u0627\u0644\u0645\u0639\u0627\u064A\u0646\u0629 \u0648\u0623\u062F\u0648\u0627\u062A \u0627\u0644\u062A\u0631\u0627\u062C\u0639 -->
+            <!-- \u0627\u0644\u0648\u0633\u0637: \u0623\u062F\u0648\u0627\u062A \u0627\u0644\u062A\u0631\u0627\u062C\u0639 \u0644\u0644\u0634\u0627\u0634\u0627\u062A \u0627\u0644\u0643\u0628\u064A\u0631\u0629 -->
             <div class="sb-topbar-center">
                 <div class="sb-history-group">
-                    <button class="sb-icon-tool" id="btn-undo" onclick="window.StudioUI.undo()" title="\u062A\u0631\u0627\u062C\u0639 (Ctrl+Z)" ${!canUndo ? "disabled" : ""}>
+                    <button class="sb-icon-tool" data-history-action="undo" onclick="window.StudioUI.undo()" title="\u062A\u0631\u0627\u062C\u0639 (Ctrl+Z)" ${!canUndo ? "disabled" : ""}>
                         <i class="fas fa-undo"></i>
                     </button>
-                    <button class="sb-icon-tool" id="btn-redo" onclick="window.StudioUI.redo()" title="\u0625\u0639\u0627\u062F\u0629 (Ctrl+Y)" ${!canRedo ? "disabled" : ""}>
+                    <button class="sb-icon-tool" data-history-action="redo" onclick="window.StudioUI.redo()" title="\u0625\u0639\u0627\u062F\u0629 (Ctrl+Y)" ${!canRedo ? "disabled" : ""}>
                         <i class="fas fa-redo"></i>
-                    </button>
-                </div>
-
-                <div class="sb-device-switcher">
-                    <button class="sb-device-btn ${currentDevice === "mobile" ? "active" : ""}" data-device="mobile" onclick="window.StudioUI.setDevice('mobile')">
-                        <i class="fas fa-mobile-alt"></i> <span>\u062C\u0648\u0627\u0644 (390px)</span>
-                    </button>
-                    <button class="sb-device-btn ${currentDevice === "tablet" ? "active" : ""}" data-device="tablet" onclick="window.StudioUI.setDevice('tablet')">
-                        <i class="fas fa-tablet-alt"></i> <span>\u062A\u0627\u0628\u0644\u062A (768px)</span>
-                    </button>
-                    <button class="sb-device-btn ${currentDevice === "desktop" ? "active" : ""}" data-device="desktop" onclick="window.StudioUI.setDevice('desktop')">
-                        <i class="fas fa-desktop"></i> <span>\u0643\u0645\u0628\u064A\u0648\u062A\u0631 (100%)</span>
                     </button>
                 </div>
             </div>
 
-            <!-- \u0623\u0632\u0631\u0627\u0631 \u0627\u0644\u0625\u062C\u0631\u0627\u0621\u0627\u062A \u0648\u0627\u0644\u0646\u0634\u0631 -->
+            <!-- \u0627\u0644\u0637\u0631\u0641 \u0627\u0644\u0623\u064A\u0633\u0631: \u0627\u0644\u0625\u062C\u0631\u0627\u0621\u0627\u062A \u0648\u0627\u0644\u0646\u0634\u0631 \u0648\u0642\u0627\u0626\u0645\u0629 \u0627\u0644\u0645\u0632\u064A\u062F -->
             <div class="sb-topbar-end">
-                <button class="sb-btn sb-btn-ghost" onclick="window.StudioUI.openHelpModal()" title="\u062F\u0644\u064A\u0644 \u062A\u0639\u0644\u064A\u0645\u0627\u062A \u0627\u0644\u0627\u0633\u062A\u0648\u062F\u064A\u0648">
-                    <i class="fas fa-lightbulb" style="color:#FBBF24;"></i>
-                    <span class="hide-mobile">\u062A\u0639\u0644\u064A\u0645\u0627\u062A</span>
-                </button>
-                
-                <button class="sb-btn sb-btn-ghost" style="color:#F87171;" onclick="window.StudioUI.resetAllDefaults()" title="\u0627\u0633\u062A\u0639\u0627\u062F\u0629 \u0627\u0644\u0625\u0639\u062F\u0627\u062F\u0627\u062A \u0627\u0644\u0627\u0641\u062A\u0631\u0627\u0636\u064A\u0629">
-                    <i class="fas fa-trash-restore"></i>
-                </button>
-
-                <button class="sb-btn sb-btn-ghost" onclick="window.StudioUI.toggleDarkMode()" title="\u062A\u0628\u062F\u064A\u0644 \u0627\u0644\u0648\u0636\u0639 \u0627\u0644\u0644\u064A\u0644\u064A \u0644\u0644\u0645\u0639\u0627\u064A\u0646\u0629">
-                    <i class="fas ${isDarkPreview ? "fa-sun" : "fa-moon"}" id="sb-theme-icon"></i>
+                <!-- \u062A\u0628\u062F\u064A\u0644 \u0627\u0644\u0648\u0636\u0639 \u0627\u0644\u0644\u064A\u0644\u064A \u0644\u0644\u0645\u0639\u0627\u064A\u0646\u0629 -->
+                <button class="sb-btn sb-btn-ghost" onclick="window.StudioUI.toggleDarkMode()" title="\u062A\u0628\u062F\u064A\u0644 \u0627\u0644\u0648\u0636\u0639 \u0627\u0644\u0644\u064A\u0644\u064A/\u0627\u0644\u0646\u0647\u0627\u0631\u064A \u0644\u0644\u0645\u0639\u0627\u064A\u0646\u0629">
+                    <i class="fas ${isDarkPreview ? "fa-sun" : "fa-moon"}" id="sb-theme-icon" style="color:${isDarkPreview ? "#FBBF24" : "inherit"};"></i>
                     <span class="hide-mobile" id="sb-theme-mode-text">${isDarkPreview ? "\u0641\u0627\u062A\u062D" : "\u062F\u0627\u0643\u0646"}</span>
                 </button>
 
-                <input type="file" id="json-file-input" style="display:none;" accept=".json" onchange="window.StudioUI.handleJsonFileUpload(event)" />
-                
-                <button class="sb-btn sb-btn-ghost" onclick="document.getElementById('json-file-input').click()" title="\u0627\u0633\u062A\u064A\u0631\u0627\u062F \u0645\u0644\u0641 JSON">
+                <!-- \u0623\u0632\u0631\u0627\u0631 \u0627\u0644\u062D\u0627\u0633\u0648\u0628 \u0648\u0627\u0644\u0634\u0627\u0634\u0627\u062A \u0627\u0644\u0643\u0628\u064A\u0631\u0629 -->
+                <button class="sb-btn sb-btn-ghost hide-mobile" onclick="window.StudioUI.openHelpModal()" title="\u062F\u0644\u064A\u0644 \u062A\u0639\u0644\u064A\u0645\u0627\u062A \u0627\u0644\u0627\u0633\u062A\u0648\u062F\u064A\u0648">
+                    <i class="fas fa-lightbulb" style="color:#FBBF24;"></i>
+                    <span>\u062A\u0639\u0644\u064A\u0645\u0627\u062A</span>
+                </button>
+
+                <input type="file" id="json-file-input" style="display:none;" accept=".json,application/json" onchange="window.StudioUI.handleJsonFileUpload(event)" />
+
+                <button class="sb-btn sb-btn-ghost hide-mobile" onclick="document.getElementById('json-file-input').click()" title="\u0627\u0633\u062A\u064A\u0631\u0627\u062F \u0625\u0639\u062F\u0627\u062F\u0627\u062A \u0623\u0648 \u0642\u0627\u0644\u0628 JSON">
                     <i class="fas fa-upload"></i>
                 </button>
-                
-                <button class="sb-btn sb-btn-ghost" onclick="window.StudioUI.downloadJson()" title="\u062A\u0635\u062F\u064A\u0631 \u0645\u0644\u0641 JSON">
+
+                <button class="sb-btn sb-btn-ghost hide-mobile" onclick="window.StudioUI.downloadJson()" title="\u062A\u0635\u062F\u064A\u0631 \u0648\u062A\u0646\u0632\u064A\u0644 \u0645\u0644\u0641 JSON">
                     <i class="fas fa-download"></i>
                 </button>
 
-                <button id="btn-publish-live" class="sb-btn sb-btn-primary" onclick="window.StudioUI.publishTheme()">
+                <button class="sb-btn sb-btn-ghost hide-mobile" style="color:#F87171;" onclick="window.StudioUI.resetAllDefaults()" title="\u0627\u0633\u062A\u0639\u0627\u062F\u0629 \u0627\u0644\u0625\u0639\u062F\u0627\u062F\u0627\u062A \u0627\u0644\u0627\u0641\u062A\u0631\u0627\u0636\u064A\u0629">
+                    <i class="fas fa-trash-restore"></i>
+                </button>
+
+                <!-- \u0642\u0627\u0626\u0645\u0629 "\u0627\u0644\u0645\u0632\u064A\u062F" \u0627\u0644\u0645\u0646\u0633\u062F\u0644\u0629 \u0644\u0644\u0647\u0648\u0627\u062A\u0641 \u0648\u0627\u0644\u0634\u0627\u0634\u0627\u062A \u0627\u0644\u0635\u063A\u064A\u0631\u0629 -->
+                <div class="sb-topbar-more-container">
+                    <button class="sb-btn sb-btn-ghost" onclick="window.StudioUI.toggleMoreMenu(event)" title="\u0627\u0644\u0645\u0632\u064A\u062F \u0645\u0646 \u0627\u0644\u0623\u062F\u0648\u0627\u062A">
+                        <i class="fas fa-ellipsis-v"></i>
+                    </button>
+                    <div class="sb-more-dropdown" id="sb-more-dropdown">
+                        <button class="sb-dropdown-item" onclick="window.StudioUI.openHelpModal(); window.StudioUI.toggleMoreMenu();">
+                            <i class="fas fa-lightbulb" style="color:#FBBF24;"></i>
+                            <span>\u062F\u0644\u064A\u0644 \u0627\u0644\u062A\u0639\u0644\u064A\u0645\u0627\u062A \u0648\u0627\u0644\u0645\u0633\u0627\u0639\u062F\u0629</span>
+                        </button>
+                        <button class="sb-dropdown-item" onclick="document.getElementById('json-file-input').click(); window.StudioUI.toggleMoreMenu();">
+                            <i class="fas fa-upload" style="color:#38BDF8;"></i>
+                            <span>\u0627\u0633\u062A\u064A\u0631\u0627\u062F \u0645\u0644\u0641 JSON</span>
+                        </button>
+                        <button class="sb-dropdown-item" onclick="window.StudioUI.downloadJson(); window.StudioUI.toggleMoreMenu();">
+                            <i class="fas fa-download" style="color:#10B981;"></i>
+                            <span>\u062A\u0635\u062F\u064A\u0631 \u0645\u0644\u0641 JSON</span>
+                        </button>
+                        <a href="index.html?store=${encodeURIComponent(studioState.merchantUsername)}" target="_blank" class="sb-dropdown-item" style="text-decoration:none;">
+                            <i class="fas fa-external-link-alt" style="color:#6366F1;"></i>
+                            <span>\u0632\u064A\u0627\u0631\u0629 \u0627\u0644\u0645\u062A\u062C\u0631 \u0627\u0644\u0645\u0628\u0627\u0634\u0631</span>
+                        </a>
+                        <div style="height:1px; background:var(--sb-border); margin:4px 0;"></div>
+                        <button class="sb-dropdown-item" style="color:#F87171;" onclick="window.StudioUI.resetAllDefaults(); window.StudioUI.toggleMoreMenu();">
+                            <i class="fas fa-trash-restore"></i>
+                            <span>\u0627\u0633\u062A\u0639\u0627\u062F\u0629 \u0627\u0644\u0627\u0641\u062A\u0631\u0627\u0636\u064A\u0627\u062A</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- \u0632\u0631 \u0627\u0644\u0646\u0634\u0631 \u0627\u0644\u0631\u0626\u064A\u0633\u064A -->
+                <button id="btn-publish-live" class="sb-btn sb-btn-primary" onclick="window.StudioUI.publishTheme()" title="\u0646\u0634\u0631 \u0627\u0644\u062A\u0639\u062F\u064A\u0644\u0627\u062A \u0639\u0644\u0649 \u0627\u0644\u0645\u062A\u062C\u0631 \u0645\u0628\u0627\u0634\u0631\u0629">
                     <i class="fas fa-cloud-upload-alt"></i>
                     <span>\u0646\u0634\u0631 \u{1F680}</span>
                 </button>
@@ -4502,14 +4559,14 @@ var AIPaletteTab = class {
 
                 <!-- \u0623\u0632\u0631\u0627\u0631 \u0627\u0644\u062A\u0646\u0642\u0644 \u0627\u0644\u0633\u0631\u064A\u0639 \u0628\u064A\u0646 \u0637\u0631\u0642 \u0627\u0644\u062A\u062E\u0635\u064A\u0635 -->
                 <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px;">
-                    <a href="#section-ready-themes" class="sb-btn sb-btn-primary" style="justify-content:center; padding:10px 8px; font-size:0.82rem; text-decoration:none; font-weight:800;">
+                    <button type="button" class="sb-btn sb-btn-primary" style="justify-content:center; padding:10px 8px; font-size:0.82rem; font-weight:800;" onclick="document.getElementById('section-ready-themes')?.scrollIntoView({behavior:'smooth'})">
                         <i class="fas fa-swatchbook"></i>
                         <span>\u062A\u0635\u0641\u062D 20 \u062B\u064A\u0645 \u062C\u0627\u0647\u0632 \u{1F3A8}</span>
-                    </a>
-                    <a href="#section-ai-generator" class="sb-btn sb-btn-outline" style="justify-content:center; padding:10px 8px; font-size:0.82rem; text-decoration:none; font-weight:800;">
+                    </button>
+                    <button type="button" class="sb-btn sb-btn-outline" style="justify-content:center; padding:10px 8px; font-size:0.82rem; font-weight:800;" onclick="document.getElementById('section-ai-generator')?.scrollIntoView({behavior:'smooth'})">
                         <i class="fas fa-wand-magic-sparkles" style="color:#A78BFA;"></i>
                         <span>\u0627\u0644\u0645\u0648\u0644\u062F \u0627\u0644\u0630\u0643\u064A \u0648\u0627\u0644\u062A\u062E\u0635\u064A\u0635 \u0627\u0644\u062D\u0631 \u26A1</span>
-                    </a>
+                    </button>
                 </div>
             </div>
 
@@ -4532,7 +4589,7 @@ var AIPaletteTab = class {
                     ${categories.map((cat, idx) => `
                         <button class="sb-badge-pill ${idx === 0 ? "active" : ""}" 
                                 onclick="window.StudioUI.filterPresetCards('${cat}', this)"
-                                style="cursor:pointer; border:1px solid var(--sb-border); background:var(--sb-surface); color:var(--sb-text); padding:4px 10px; border-radius:999px; font-size:0.76rem; white-space:nowrap; transition:all 0.2s;">
+                                style="cursor:pointer; padding:5px 12px; font-size:0.78rem; white-space:nowrap; transition:all 0.2s;">
                             ${cat === "\u0627\u0644\u0643\u0644" ? "\u{1F31F} \u0627\u0644\u0643\u0644 (20)" : cat}
                         </button>
                     `).join("")}
@@ -4546,7 +4603,7 @@ var AIPaletteTab = class {
       const dColors = p.dark_theme?.colors || {};
       return `
                         <div class="sb-preset-theme-card" data-category="${p.category || "\u0639\u0627\u0645"}" 
-                             style="border:1px solid ${isActive ? "var(--sb-primary)" : "var(--sb-border)"}; background:var(--sb-card); border-radius:14px; padding:12px 14px; position:relative; box-shadow:${isActive ? "0 0 0 2px var(--sb-primary)" : "none"}; transition:all 0.2s;">
+                             style="content-visibility:auto; contain-intrinsic-size:0 160px; border:1px solid ${isActive ? "var(--sb-primary)" : "var(--sb-border)"}; background:var(--sb-card); border-radius:14px; padding:12px 14px; position:relative; box-shadow:${isActive ? "0 0 0 2px var(--sb-primary)" : "none"}; transition:all 0.2s;">
                             
                             <!-- \u0631\u0623\u0633 \u0627\u0644\u0643\u0631\u062A -->
                             <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:6px;">
@@ -4952,356 +5009,6 @@ var TypographyTab = class {
   }
 };
 
-// src/studio/styleLibrary.ts
-var STORE_STYLE_LIBRARY = {
-  "modern-soft": {
-    id: "modern-soft",
-    name: "Modern Soft",
-    label: "\u062D\u062F\u064A\u062B \u0646\u0627\u0639\u0645",
-    description: "\u0645\u0638\u0647\u0631 \u0623\u0646\u064A\u0642 \u0644\u0644\u0645\u062A\u062C\u0631 \u0627\u0644\u062D\u062F\u064A\u062B \u0645\u0639 \u062D\u0648\u0627\u0641 \u062F\u0642\u064A\u0642\u0629 \u0648\u0623\u0632\u0631\u0627\u0631 \u0645\u0631\u064A\u062D\u0629.",
-    accent: "#6366F1",
-    cardRadius: "18px",
-    buttonStyle: "pill",
-    buttonRadius: "9999px",
-    animation: "lift",
-    displayMode: "by_categories_sections",
-    cardStyle: "classic",
-    cardOrientation: "portrait",
-    navbarStyle: "glass",
-    spacing: "normal",
-    botPersona: "classic",
-    botButtonStyle: "pill",
-    botAvatarStyle: "pulse"
-  },
-  glass: {
-    id: "glass",
-    name: "Glass",
-    label: "\u0632\u062C\u0627\u062C\u064A",
-    description: "\u0634\u0628\u0647 \u0634\u0641\u0627\u0641 \u0645\u0639 \u0637\u0628\u0642\u0627\u062A \u0632\u062C\u0627\u062C\u064A\u0629\u060C \u0645\u0645\u062A\u0627\u0632 \u0644\u0644\u062A\u0635\u0627\u0645\u064A\u0645 \u0627\u0644\u0641\u0627\u062E\u0631\u0629.",
-    accent: "#8B5CF6",
-    cardRadius: "24px",
-    buttonStyle: "rounded",
-    buttonRadius: "16px",
-    animation: "glow",
-    displayMode: "featured_first",
-    cardStyle: "glass",
-    cardOrientation: "landscape",
-    navbarStyle: "glass",
-    spacing: "relaxed",
-    botPersona: "premium",
-    botButtonStyle: "bubble",
-    botAvatarStyle: "halo"
-  },
-  luxury: {
-    id: "luxury",
-    name: "Luxury",
-    label: "\u0641\u0627\u062E\u0631",
-    description: "\u0623\u0644\u0648\u0627\u0646 \u0623\u0646\u064A\u0642\u0629\u060C \u0641\u0648\u0627\u0635\u0644 \u0648\u0627\u0633\u0639\u0629\u060C \u0648\u0632\u0627\u0648\u064A\u0629 \u0645\u0645\u064A\u0632\u0629 \u0644\u0644\u0639\u0644\u0627\u0645\u0627\u062A \u0627\u0644\u0631\u0627\u0642\u064A\u0629.",
-    accent: "#B45309",
-    cardRadius: "26px",
-    buttonStyle: "pill",
-    buttonRadius: "9999px",
-    animation: "scale",
-    displayMode: "featured_first",
-    cardStyle: "magazine",
-    cardOrientation: "landscape",
-    navbarStyle: "floating",
-    spacing: "relaxed",
-    botPersona: "luxury",
-    botButtonStyle: "bubble",
-    botAvatarStyle: "halo"
-  },
-  minimal: {
-    id: "minimal",
-    name: "Minimal",
-    label: "\u0628\u0633\u064A\u0637",
-    description: "\u0623\u0642\u0644 \u062A\u0641\u0627\u0635\u064A\u0644 \u0648\u0623\u0643\u062B\u0631 \u0648\u0636\u0648\u062D\u060C \u0645\u062B\u0627\u0644\u064A \u0644\u0644\u0645\u062A\u0627\u062C\u0631 \u0627\u0644\u0639\u0635\u0631\u064A\u0629.",
-    accent: "#111827",
-    cardRadius: "10px",
-    buttonStyle: "square",
-    buttonRadius: "8px",
-    animation: "none",
-    displayMode: "all_flat_grid",
-    cardStyle: "minimal",
-    cardOrientation: "portrait",
-    navbarStyle: "solid",
-    spacing: "compact",
-    botPersona: "classic",
-    botButtonStyle: "minimal",
-    botAvatarStyle: "pulse"
-  },
-  tech: {
-    id: "tech",
-    name: "Tech",
-    label: "\u062A\u0642\u0646\u064A",
-    description: "\u0623\u0633\u0644\u0648\u0628 \u062A\u0643\u0646\u0648\u0644\u0648\u062C\u064A \u0645\u0639 \u062D\u0648\u0627\u0641 \u0645\u062A\u0646\u0627\u0633\u0642\u0629 \u0648\u0623\u062F\u0648\u0627\u062A \u062A\u0645\u062B\u064A\u0644\u064A\u0629 \u062D\u062F\u064A\u062B\u0629.",
-    accent: "#06B6D4",
-    cardRadius: "16px",
-    buttonStyle: "rounded",
-    buttonRadius: "14px",
-    animation: "glow",
-    displayMode: "tabs_by_category",
-    cardStyle: "bold",
-    cardOrientation: "portrait",
-    navbarStyle: "glass",
-    spacing: "normal",
-    botPersona: "tech",
-    botButtonStyle: "minimal",
-    botAvatarStyle: "orb"
-  },
-  fashion: {
-    id: "fashion",
-    name: "Fashion",
-    label: "\u0645\u0648\u0636\u0629",
-    description: "\u0642\u0648\u0629 \u0627\u0644\u0644\u0648\u0646\u060C \u0625\u064A\u0642\u0627\u0639 \u0623\u0646\u064A\u0642\u060C \u0648\u0645\u0638\u0647\u0631 \u0645\u0631\u0646 \u0644\u0623\u0632\u064A\u0627\u0621 \u0648\u0645\u0627\u0631\u0643\u0627\u062A lifestyle.",
-    accent: "#EC4899",
-    cardRadius: "22px",
-    buttonStyle: "pill",
-    buttonRadius: "9999px",
-    animation: "scale",
-    displayMode: "featured_first",
-    cardStyle: "magazine",
-    cardOrientation: "portrait",
-    navbarStyle: "floating",
-    spacing: "relaxed",
-    botPersona: "fashion",
-    botButtonStyle: "bubble",
-    botAvatarStyle: "hover"
-  },
-  bold: {
-    id: "bold",
-    name: "Bold",
-    label: "\u062C\u0631\u064A\u0621",
-    description: "\u0639\u0646\u0627\u0635\u0631 \u0648\u0627\u0636\u062D\u0629\u060C \u0623\u0644\u0648\u0627\u0646 \u0645\u062A\u064A\u0646\u0629\u060C \u0648\u0645\u0638\u0647\u0631 \u062A\u0637\u0644\u0628\u064A \u064A\u0644\u0641\u062A \u0627\u0644\u0627\u0646\u062A\u0628\u0627\u0647.",
-    accent: "#F59E0B",
-    cardRadius: "28px",
-    buttonStyle: "rounded",
-    buttonRadius: "18px",
-    animation: "scale",
-    displayMode: "featured_first",
-    cardStyle: "bold",
-    cardOrientation: "landscape",
-    navbarStyle: "floating",
-    spacing: "relaxed",
-    botPersona: "premium",
-    botButtonStyle: "bubble",
-    botAvatarStyle: "halo"
-  },
-  organic: {
-    id: "organic",
-    name: "Organic",
-    label: "\u0637\u0628\u064A\u0639\u064A",
-    description: "\u0645\u0638\u0647\u0631 \u0646\u0627\u0639\u0645 \u0648\u0645\u0631\u064A\u062D \u064A\u0646\u0627\u0633\u0628 \u0627\u0644\u0645\u0646\u062A\u062C\u0627\u062A \u0627\u0644\u0635\u062D\u064A\u0629 \u0648\u0627\u0644\u0637\u0628\u064A\u0639\u064A\u0629.",
-    accent: "#10B981",
-    cardRadius: "20px",
-    buttonStyle: "pill",
-    buttonRadius: "9999px",
-    animation: "lift",
-    displayMode: "by_categories_sections",
-    cardStyle: "classic",
-    cardOrientation: "portrait",
-    navbarStyle: "glass",
-    spacing: "normal",
-    botPersona: "wellness",
-    botButtonStyle: "pill",
-    botAvatarStyle: "pulse"
-  },
-  futuristic: {
-    id: "futuristic",
-    name: "Futuristic",
-    label: "\u0645\u0633\u062A\u0642\u0628\u0644\u064A",
-    description: "\u0623\u0646\u064A\u0642\u060C \u062D\u062F\u064A\u062B\u060C \u0648\u0645\u0644\u064A\u0621 \u0628\u0627\u0644\u062A\u0623\u062B\u064A\u0631\u0627\u062A \u0627\u0644\u0631\u0642\u0645\u064A\u0629 \u0648\u0627\u0644\u0639\u0627\u0643\u0633\u0627\u062A.",
-    accent: "#06B6D4",
-    cardRadius: "30px",
-    buttonStyle: "rounded",
-    buttonRadius: "16px",
-    animation: "glow",
-    displayMode: "tabs_by_category",
-    cardStyle: "glass",
-    cardOrientation: "landscape",
-    navbarStyle: "glass",
-    spacing: "relaxed",
-    botPersona: "futuristic",
-    botButtonStyle: "minimal",
-    botAvatarStyle: "orb"
-  },
-  premium: {
-    id: "premium",
-    name: "Premium",
-    label: "\u0645\u0645\u064A\u0632",
-    description: "\u0623\u0633\u0644\u0648\u0628 \u0645\u0645\u064A\u0632 \u064A\u0646\u0642\u0644 \u0627\u0644\u0645\u062A\u062C\u0631 \u0625\u0644\u0649 \u062A\u062C\u0631\u0628\u0629 \u0639\u0644\u0627\u0645\u0629 \u062A\u062C\u0627\u0631\u064A\u0629 \u0645\u062A\u0642\u062F\u0645\u0629.",
-    accent: "#8B5CF6",
-    cardRadius: "22px",
-    buttonStyle: "pill",
-    buttonRadius: "9999px",
-    animation: "lift",
-    displayMode: "featured_first",
-    cardStyle: "magazine",
-    cardOrientation: "landscape",
-    navbarStyle: "floating",
-    spacing: "relaxed",
-    botPersona: "premium",
-    botButtonStyle: "bubble",
-    botAvatarStyle: "halo"
-  },
-  classic: {
-    id: "classic",
-    name: "Classic",
-    label: "\u0643\u0644\u0627\u0633\u064A\u0643\u064A",
-    description: "\u0645\u0638\u0647\u0631 \u0645\u062A\u0648\u0627\u0632\u0646 \u064A\u0639\u0631\u0641\u0647 \u0627\u0644\u0632\u0628\u0648\u0646 \u0648\u064A\u0634\u0639\u0631\u0647 \u0628\u0627\u0644\u062B\u0642\u0629.",
-    accent: "#4F46E5",
-    cardRadius: "14px",
-    buttonStyle: "rounded",
-    buttonRadius: "12px",
-    animation: "lift",
-    displayMode: "by_categories_sections",
-    cardStyle: "classic",
-    cardOrientation: "portrait",
-    navbarStyle: "solid",
-    spacing: "normal",
-    botPersona: "classic",
-    botButtonStyle: "pill",
-    botAvatarStyle: "pulse"
-  },
-  market: {
-    id: "market",
-    name: "Market",
-    label: "\u062A\u062C\u0627\u0631\u064A",
-    description: "\u0645\u0646\u0627\u0633\u0628 \u0644\u0644\u0645\u062A\u0627\u062C\u0631 \u0627\u0644\u0643\u0628\u064A\u0631\u0629 \u0648\u0627\u0644\u0645\u0646\u062A\u062C\u0627\u062A \u0627\u0644\u0645\u0632\u0648\u062F\u0629 \u0628\u062E\u0635\u0648\u0645\u0627\u062A \u0648\u062A\u062C\u0627\u0631\u064A\u0627\u062A.",
-    accent: "#FB7185",
-    cardRadius: "16px",
-    buttonStyle: "rounded",
-    buttonRadius: "14px",
-    animation: "scale",
-    displayMode: "by_categories_sections",
-    cardStyle: "bold",
-    cardOrientation: "portrait",
-    navbarStyle: "solid",
-    spacing: "normal",
-    botPersona: "tech",
-    botButtonStyle: "pill",
-    botAvatarStyle: "pulse"
-  }
-};
-var STORE_STYLE_LIBRARY_LIST = Object.values(STORE_STYLE_LIBRARY);
-
-// src/studio/components/tabs/ShapesTab.ts
-var ShapesTab = class {
-  static render() {
-    const sh = studioState.config.shapes || {};
-    const activeStyleId = studioState.config.style_library?.current || "modern-soft";
-    const libraryCards = STORE_STYLE_LIBRARY_LIST.map((preset) => {
-      const isActive = preset.id === activeStyleId;
-      return `
-                <div class="sb-style-library-card ${isActive ? "active" : ""}">
-                    <div class="sb-style-preview" style="--accent:${preset.accent}; --card-radius:${preset.cardRadius}; --btn-radius:${preset.buttonRadius}; --btn-style:${preset.buttonStyle};">
-                        <div class="sb-style-preview-top">
-                            <span class="sb-style-dot"></span>
-                            <span class="sb-style-dot"></span>
-                            <span class="sb-style-dot"></span>
-                        </div>
-                        <div class="sb-style-preview-row">
-                            <span class="sb-style-pill" style="background:${preset.accent};"></span>
-                            <span class="sb-style-chip"></span>
-                            <span class="sb-style-chip short"></span>
-                        </div>
-                        <div class="sb-style-preview-card"></div>
-                    </div>
-                    <div class="sb-style-meta">
-                        <strong>${preset.label}</strong>
-                        <small>${preset.description}</small>
-                    </div>
-                    <button class="sb-btn ${isActive ? "sb-btn-primary" : "sb-btn-ghost"} sb-style-apply-btn" onclick="window.StudioUI.applyStyleLibraryPreset('${preset.id}')">
-                        ${isActive ? "\u062A\u0645 \u0627\u0644\u062A\u0637\u0628\u064A\u0642" : "\u062A\u0637\u0628\u064A\u0642"}
-                    </button>
-                </div>
-            `;
-    }).join("");
-    return `
-        <div class="sb-tab-pane">
-            <div class="sb-card-group highlight">
-                <div class="sb-group-header">
-                    <i class="fas fa-layer-group" style="color:#FBBF24;"></i>
-                    <h3>\u0645\u0643\u062A\u0628\u0629 \u0627\u0644\u0623\u0634\u0643\u0627\u0644</h3>
-                </div>
-                <p style="font-size:0.82rem;color:var(--sb-muted,#6b7280);margin:0 0 14px;line-height:1.6;">\u0627\u0633\u062A\u062F\u0639\u0650 \u0634\u0643\u0644 \u062C\u0627\u0647\u0632 \u0644\u0643\u0644 \u0639\u0646\u0627\u0635\u0631 \u0627\u0644\u0645\u062A\u062C\u0631: \u0627\u0644\u0643\u0631\u0648\u062A\u060C \u0627\u0644\u0623\u0632\u0631\u0627\u0631\u060C \u0627\u0644\u0634\u0631\u064A\u0637 \u0627\u0644\u0639\u0644\u0648\u064A/\u0627\u0644\u0633\u0641\u0644\u064A\u060C \u0648\u0627\u0644\u0645\u0633\u0627\u0639\u062F \u0627\u0644\u0630\u0643\u064A.</p>
-                <div class="sb-style-library-grid">
-                    ${libraryCards}
-                </div>
-            </div>
-
-            <div class="sb-card-group">
-                <div class="sb-group-header">
-                    <i class="fas fa-shapes" style="color:#FBBF24;"></i>
-                    <h3>\u0627\u0633\u062A\u062F\u0627\u0631\u0629 \u062D\u0648\u0627\u0641 \u0627\u0644\u0643\u0631\u0648\u062A \u0648\u0627\u0644\u0623\u0632\u0631\u0627\u0631</h3>
-                </div>
-
-                <div class="sb-fields-grid">
-                    <div class="sb-field-card">
-                        <label class="sb-field-label">\u0627\u0633\u062A\u062F\u0627\u0631\u0629 \u0643\u0631\u0648\u062A \u0627\u0644\u0645\u0646\u062A\u062C\u0627\u062A (Card Radius)</label>
-                        <div class="sb-segmented-control">
-                            <button class="sb-seg-btn ${sh.card_radius === "0px" ? "active" : ""}" 
-                                    onclick="window.StudioUI.handleShapeChange('card_radius', '0px')">0px (\u0645\u0631\u0628\u0639)</button>
-                            <button class="sb-seg-btn ${sh.card_radius === "8px" ? "active" : ""}" 
-                                    onclick="window.StudioUI.handleShapeChange('card_radius', '8px')">8px (\u062E\u0641\u064A\u0641)</button>
-                            <button class="sb-seg-btn ${sh.card_radius === "12px" ? "active" : ""}" 
-                                    onclick="window.StudioUI.handleShapeChange('card_radius', '12px')">12px (\u062D\u0627\u062F)</button>
-                            <button class="sb-seg-btn ${sh.card_radius === "16px" ? "active" : ""}" 
-                                    onclick="window.StudioUI.handleShapeChange('card_radius', '16px')">16px</button>
-                            <button class="sb-seg-btn ${sh.card_radius === "20px" || !sh.card_radius ? "active" : ""}" 
-                                    onclick="window.StudioUI.handleShapeChange('card_radius', '20px')">20px \u2B50</button>
-                            <button class="sb-seg-btn ${sh.card_radius === "28px" ? "active" : ""}" 
-                                    onclick="window.StudioUI.handleShapeChange('card_radius', '28px')">28px (\u062F\u0627\u0626\u0631\u064A)</button>
-                        </div>
-                    </div>
-
-                    <div class="sb-field-card">
-                        <label class="sb-field-label">\u0646\u0645\u0637 \u0648\u0634\u0643\u0644 \u0627\u0644\u0623\u0632\u0631\u0627\u0631 (Button Style)</label>
-                        <div class="sb-segmented-control">
-                            <button class="sb-seg-btn ${sh.button_style === "rounded" || !sh.button_style ? "active" : ""}" 
-                                    onclick="window.StudioUI.handleShapeChange('button_style', 'rounded'); window.StudioUI.handleShapeChange('button_radius', '14px');">
-                                \u{1F518} \u0645\u0646\u062D\u0646\u064A (Rounded)
-                            </button>
-                            <button class="sb-seg-btn ${sh.button_style === "pill" ? "active" : ""}" 
-                                    onclick="window.StudioUI.handleShapeChange('button_style', 'pill'); window.StudioUI.handleShapeChange('button_radius', '9999px');">
-                                \u{1F48A} \u0643\u0628\u0633\u0648\u0644\u064A (Pill)
-                            </button>
-                            <button class="sb-seg-btn ${sh.button_style === "square" ? "active" : ""}" 
-                                    onclick="window.StudioUI.handleShapeChange('button_style', 'square'); window.StudioUI.handleShapeChange('button_radius', '6px');">
-                                \u2B1B \u0645\u0631\u0628\u0639 (Square)
-                            </button>
-                        </div>
-                    </div>
-
-                    <div class="sb-field-card" style="grid-column: 1 / -1;">
-                        <label class="sb-field-label">\u062A\u0623\u062B\u064A\u0631 \u062A\u0645\u0631\u064A\u0631 \u0627\u0644\u0645\u0627\u0648\u0633 \u0639\u0644\u0649 \u0643\u0631\u062A \u0627\u0644\u0645\u0646\u062A\u062C</label>
-                        <div class="sb-segmented-control">
-                            <button class="sb-seg-btn ${(studioState.config.animations?.card_hover || "lift") === "lift" ? "active" : ""}" 
-                                    onclick="window.StudioUI.handleAnimationChange('card_hover', 'lift')">
-                                \u{1F680} \u0631\u0641\u0639 \u0645\u0639 \u0638\u0644 (Lift)
-                            </button>
-                            <button class="sb-seg-btn ${studioState.config.animations?.card_hover === "glow" ? "active" : ""}" 
-                                    onclick="window.StudioUI.handleAnimationChange('card_hover', 'glow')">
-                                \u2728 \u062A\u0648\u0647\u062C (Glow)
-                            </button>
-                            <button class="sb-seg-btn ${studioState.config.animations?.card_hover === "scale" ? "active" : ""}" 
-                                    onclick="window.StudioUI.handleAnimationChange('card_hover', 'scale')">
-                                \u{1F50D} \u062A\u0643\u0628\u064A\u0631 (Scale)
-                            </button>
-                            <button class="sb-seg-btn ${studioState.config.animations?.card_hover === "none" ? "active" : ""}" 
-                                    onclick="window.StudioUI.handleAnimationChange('card_hover', 'none')">
-                                \u{1F6AB} \u0628\u062F\u0648\u0646 \u062D\u0631\u0643\u0629
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-        </div>
-        `;
-  }
-};
-
 // src/studio/components/tabs/MarketingTab.ts
 var MarketingTab = class {
   static render() {
@@ -5444,7 +5151,7 @@ ${JSON.stringify(promptConfig, null, 2)}`;
                     <div style="grid-column: 1 / -1;">
                         <div class="sb-json-note">
                             <i class="fas fa-lightbulb"></i>
-                            <span>\u0627\u0646\u0633\u062E \u0627\u0644\u0628\u0631\u0648\u0645\u0628\u062A\u060C \u0639\u062F\u0651\u0644 \u0627\u0644\u0642\u064A\u0645 \u062D\u0633\u0628 \u0627\u0644\u0645\u062A\u062C\u0631\u060C \u062B\u0645 \u0627\u0633\u062A\u062E\u062F\u0645 \u0646\u0641\u0633 \u0627\u0644\u0645\u062D\u062A\u0648\u0649 \u062F\u0627\u062E\u0644 \u0645\u062D\u0631\u0631 \u0627\u0644\u0640 JSON \u0623\u0648 \u0623\u0631\u0633\u0644\u0647 \u0644\u0623\u064A \u0623\u062F\u0627\u0629 \u0623\u0648 AI \u0644\u062A\u0637\u0628\u064A\u0642\u0647 \u0628\u0634\u0643\u0644 \u0643\u0627\u0645\u0644.</span>
+                            <span>\u064A\u0645\u0643\u0646\u0643 \u0627\u0633\u062A\u064A\u0631\u0627\u062F \u0625\u0639\u062F\u0627\u062F\u0627\u062A \u0627\u0644\u0645\u062A\u062C\u0631 \u0623\u0648 \u0645\u0644\u0641 \u0642\u0627\u0644\u0628 \u0645\u0633\u062A\u0642\u0644 \u0635\u0627\u062F\u0631 \u0645\u0646 \u0627\u0644\u0627\u0633\u062A\u062F\u064A\u0648\u060C \u0648\u0633\u064A\u062A\u0645 \u0623\u062E\u0630 config \u0627\u0644\u0645\u0648\u062C\u0648\u062F \u062F\u0627\u062E\u0644\u0647 \u0648\u062A\u0637\u0628\u064A\u0642\u0647 \u0639\u0644\u0649 \u0627\u0644\u0645\u0639\u0627\u064A\u0646\u0629 \u0645\u0628\u0627\u0634\u0631\u0629.</span>
                         </div>
                     </div>
 
@@ -5490,6 +5197,34 @@ ${JSON.stringify(promptConfig, null, 2)}`;
                     </div>
                 </div>
             </div>
+
+            <div class="sb-card-group">
+                <div class="sb-group-header">
+                    <i class="fas fa-box-open" style="color:var(--sb-accent);"></i>
+                    <h3>\u062A\u0635\u062F\u064A\u0631 \u0643\u0642\u0627\u0644\u0628 \u062C\u0627\u0647\u0632 \u0644\u0644\u062A\u0627\u062C\u0631</h3>
+                </div>
+                <div class="sb-json-note">
+                    <i class="fas fa-circle-info"></i>
+                    <span>\u064A\u0646\u0634\u0626 \u0645\u0644\u0641 JSON \u0645\u0633\u062A\u0642\u0644\u064B\u0627 \u0628\u0627\u0633\u0645 \u0627\u0644\u0642\u0627\u0644\u0628 \u0648\u062E\u0635\u0627\u0626\u0635\u0647 \u0644\u0644\u062A\u0635\u0645\u064A\u0645 \u0641\u0642\u0637. \u0636\u0639\u0647 \u062F\u0627\u062E\u0644 templates/themes \u062B\u0645 \u0623\u0636\u0641 \u0645\u0633\u0627\u0631\u0647 \u0625\u0644\u0649 manifest.json. \u0644\u0627 \u064A\u062A\u0645 \u062A\u0635\u062F\u064A\u0631 \u0627\u0633\u0645 \u0645\u062A\u062C\u0631\u0643 \u0623\u0648 \u0631\u0642\u0645 \u0627\u0644\u0647\u0627\u062A\u0641 \u0623\u0648 \u0628\u064A\u0627\u0646\u0627\u062A \u0627\u0644\u062A\u0648\u0627\u0635\u0644 \u0627\u0644\u062E\u0627\u0635\u0629 \u0628\u0643.</span>
+                </div>
+                <div class="sb-fields-grid" style="margin-top:12px;">
+                    <label class="sb-field">
+                        <span>\u0645\u0639\u0631\u0641 \u0627\u0644\u0642\u0627\u0644\u0628</span>
+                        <input id="theme-export-id" value="${studioState.config.theme_name || "custom_theme"}" placeholder="modern_blue">
+                    </label>
+                    <label class="sb-field">
+                        <span>\u0627\u0633\u0645 \u0627\u0644\u0642\u0627\u0644\u0628</span>
+                        <input id="theme-export-name" value="\u0642\u0627\u0644\u0628 \u0645\u062A\u062C\u0631 \u062C\u062F\u064A\u062F" placeholder="\u0627\u0633\u0645 \u064A\u0638\u0647\u0631 \u0644\u0644\u062A\u0627\u062C\u0631">
+                    </label>
+                    <label class="sb-field" style="grid-column:1 / -1;">
+                        <span>\u0648\u0635\u0641 \u0627\u0644\u0642\u0627\u0644\u0628</span>
+                        <input id="theme-export-description" value="\u062A\u0635\u0645\u064A\u0645 \u062C\u0627\u0647\u0632 \u0642\u0627\u0628\u0644 \u0644\u0644\u062A\u062E\u0635\u064A\u0635 \u0644\u0645\u062A\u062C\u0631\u0643." placeholder="\u0648\u0635\u0641 \u0645\u062E\u062A\u0635\u0631">
+                    </label>
+                </div>
+                <button class="sb-btn sb-btn-primary" style="width:100%; margin-top:12px;" onclick="window.StudioUI.downloadThemeTemplate()">
+                    <i class="fas fa-file-export"></i> \u062A\u0646\u0632\u064A\u0644 \u0645\u0644\u0641 \u0627\u0644\u0642\u0627\u0644\u0628
+                </button>
+            </div>
         </div>
         `;
   }
@@ -5510,6 +5245,180 @@ var NavigationTab = class {
     const navSettings = cfg.navigation_settings || {};
     const bottomItems = normalizeBottomNavItems(navSettings.bottom_bar?.items || DEFAULT_BOTTOM_ITEMS);
     const topBar = normalizeTopBarSettings(navSettings.top_bar || DEFAULT_TOP_BAR_SETTINGS);
+    const topBarStyle = topBar.navbar_style || navSettings.bottom_bar?.style || "solid";
+    const bottomBarStyle = navSettings.bottom_bar?.style || topBarStyle;
+    const topBarSize = navSettings.top_bar?.style_settings?.[topBarStyle] || {};
+    const bottomBarSize = navSettings.bottom_bar?.style_settings?.[bottomBarStyle] || {};
+    const styleOptions = [
+      { key: "solid", label: "\u0646\u0638\u064A\u0641", icon: "fa-square" },
+      { key: "glass", label: "\u0632\u062C\u0627\u062C\u064A", icon: "fa-layer-group" },
+      { key: "floating", label: "\u0639\u0627\u0626\u0645", icon: "fa-wand-magic-sparkles" },
+      { key: "neon", label: "\u0646\u064A\u0648\u0646", icon: "fa-bolt" },
+      { key: "minimal", label: "\u062E\u0641\u064A\u0641", icon: "fa-minus" },
+      { key: "island", label: "\u062C\u0632\u064A\u0631\u0629", icon: "fa-circle-half-stroke" }
+    ];
+    const renderStyleOptions = (selected, handler) => styleOptions.map((style) => `
+            <button class="sb-card-style-btn ${selected === style.key ? "active" : ""}" style="min-height:58px;"
+                onclick="window.StudioUI.${handler}('${style.key}')">
+                <i class="fas ${style.icon}"></i><span>${style.label}</span>
+            </button>`).join("");
+    const renderSizeControls = (bar, style, values) => {
+      const defaultHeight = bar === "top" ? 58 : 64;
+      const defaultRadius = style === "solid" ? 0 : bar === "top" ? 18 : 22;
+      const height = values.height ?? defaultHeight;
+      const radius = values.radius ?? defaultRadius;
+      const border = values.border ?? 1;
+      const desktopWidth = values.desktop_width ?? 560;
+      const desktopBottom = values.desktop_bottom ?? 22;
+      const desktopLayout = values.desktop_layout || "dock";
+      const itemRadius = values.item_radius ?? (bar === "top" ? 12 : 999);
+      const iconSize = values.icon_size ?? (bar === "top" ? 1.1 : 1.2);
+      const itemGap = values.item_gap ?? 8;
+      const showLabels = values.show_labels !== false;
+      const barColor = values.bar_color || "#6366f1";
+      const activeColor = values.active_color || "#ffffff";
+      const mobileWidth = values.mobile_width ?? 100;
+      const mobileBottom = values.mobile_bottom ?? 0;
+      const mobileShape = values.mobile_shape || "classic";
+      const mobileShapes = [
+        { key: "classic", label: "\u0643\u0644\u0627\u0633\u064A\u0643\u064A" },
+        { key: "pill", label: "\u0643\u0628\u0633\u0648\u0644\u0629" },
+        { key: "icons", label: "\u0623\u064A\u0642\u0648\u0646\u0627\u062A" },
+        { key: "elevated", label: "\u0628\u0637\u0627\u0642\u0627\u062A" },
+        { key: "center", label: "\u0645\u0631\u0643\u0632 \u0628\u0627\u0631\u0632" }
+      ];
+      return `
+            <div class="sb-nav-size-controls">
+                <div class="sb-nav-size-heading">
+                    <strong>\u062D\u062C\u0645 \u0646\u0645\u0637 ${styleOptions.find((option) => option.key === style)?.label || style}</strong>
+                    <span>\u064A\u064F\u062D\u0641\u0638 \u0628\u0634\u0643\u0644 \u0645\u0633\u062A\u0642\u0644 \u0644\u0647\u0630\u0627 \u0627\u0644\u0646\u0645\u0637</span>
+                </div>
+                <div class="sb-nav-mini-preview" data-nav-preview="${bar}-${style}">
+                    <div class="sb-nav-mini-preview-label"><i class="fas fa-eye"></i> \u0645\u0639\u0627\u064A\u0646\u0629 \u0633\u0631\u064A\u0639\u0629</div>
+                    <div class="sb-nav-mini-canvas">
+                        <div class="sb-nav-mini-device">
+                            <div class="sb-nav-mini-content"></div>
+                            <div class="sb-nav-mini-bar ${style}" style="height:${Math.min(bar === "top" ? height : values.desktop_height ?? height, 82)}px;border-radius:${Math.min(radius, 32)}px;--preview-bar-color:${barColor};--preview-active-color:${activeColor};">
+                                ${[1, 2, 3, 4, 5].map((index) => `<span style="width:${Math.max(8, Math.min(24, iconSize * 12))}px;height:${Math.max(8, Math.min(24, iconSize * 12))}px;border-radius:${Math.min(itemRadius, 16)}px;opacity:${index === 3 ? 1 : 0.58};"></span>`).join("")}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="sb-nav-style-tools">
+                    <button type="button" onclick="window.StudioUI.handleNavCopyStyle('${bar}','${style}')">
+                        <i class="fas fa-copy"></i> \u0646\u0633\u062E \u0644\u0643\u0644 \u0627\u0644\u0623\u0634\u0643\u0627\u0644
+                    </button>
+                    <button type="button" onclick="window.StudioUI.handleNavResetStyle('${bar}','${style}')">
+                        <i class="fas fa-rotate-left"></i> \u0625\u0639\u0627\u062F\u0629 \u0636\u0628\u0637 \u0647\u0630\u0627 \u0627\u0644\u0634\u0643\u0644
+                    </button>
+                </div>
+                <label class="sb-nav-range">
+                    <span>\u0627\u0644\u062D\u062C\u0645 <b id="nav-${bar}-height-value">${height}px</b></span>
+                    <input type="range" min="${bar === "top" ? 48 : 56}" max="${bar === "top" ? 88 : 96}" step="1"
+                        value="${height}"
+                        oninput="document.getElementById('nav-${bar}-height-value').textContent=this.value+'px'; window.StudioUI.handleNavBarDimensionChange('${bar}','${style}','height',this.value)">
+                </label>
+                <div class="sb-nav-color-row">
+                    <label><span>\u0644\u0648\u0646 \u0627\u0644\u0634\u0631\u064A\u0637</span><input type="color" value="${barColor}" onchange="window.StudioUI.handleNavBarDimensionChange('${bar}','${style}','bar_color',this.value)"></label>
+                    <label><span>\u0644\u0648\u0646 \u0627\u0644\u0639\u0646\u0635\u0631 \u0627\u0644\u0646\u0634\u0637</span><input type="color" value="${activeColor}" onchange="window.StudioUI.handleNavBarDimensionChange('${bar}','${style}','active_color',this.value)"></label>
+                </div>
+                <label class="sb-nav-range">
+                    <span>\u0627\u0633\u062A\u062F\u0627\u0631\u0629 \u0627\u0644\u062D\u0648\u0627\u0641 <b id="nav-${bar}-radius-value">${radius}px</b></span>
+                    <input type="range" min="0" max="32" step="1"
+                        value="${radius}"
+                        oninput="document.getElementById('nav-${bar}-radius-value').textContent=this.value+'px'; window.StudioUI.handleNavBarDimensionChange('${bar}','${style}','radius',this.value)">
+                </label>
+                <label class="sb-nav-range">
+                    <span>\u0633\u0645\u0643 \u0627\u0644\u062D\u062F\u0648\u062F <b id="nav-${bar}-border-value">${border}px</b></span>
+                    <input type="range" min="0" max="3" step="1"
+                        value="${border}"
+                        oninput="document.getElementById('nav-${bar}-border-value').textContent=this.value+'px'; window.StudioUI.handleNavBarDimensionChange('${bar}','${style}','border',this.value)">
+                </label>
+                <label class="sb-nav-range">
+                    <span>\u0627\u0633\u062A\u062F\u0627\u0631\u0629 \u0627\u0644\u0623\u0632\u0631\u0627\u0631 <b id="nav-${bar}-item-radius-value">${itemRadius}px</b></span>
+                    <input type="range" min="0" max="999" step="1" value="${itemRadius}"
+                        oninput="document.getElementById('nav-${bar}-item-radius-value').textContent=this.value+'px'; window.StudioUI.handleNavBarDimensionChange('${bar}','${style}','item_radius',this.value)">
+                </label>
+                <label class="sb-nav-range">
+                    <span>\u062D\u062C\u0645 \u0627\u0644\u0623\u064A\u0642\u0648\u0646\u0627\u062A <b id="nav-${bar}-icon-size-value">${iconSize}rem</b></span>
+                    <input type="range" min="0.8" max="1.8" step="0.1" value="${iconSize}"
+                        oninput="document.getElementById('nav-${bar}-icon-size-value').textContent=this.value+'rem'; window.StudioUI.handleNavBarDimensionChange('${bar}','${style}','icon_size',this.value)">
+                </label>
+                <label class="sb-nav-range">
+                    <span>\u0627\u0644\u0645\u0633\u0627\u0641\u0629 \u0628\u064A\u0646 \u0627\u0644\u0639\u0646\u0627\u0635\u0631 <b id="nav-${bar}-item-gap-value">${itemGap}px</b></span>
+                    <input type="range" min="0" max="24" step="1" value="${itemGap}"
+                        oninput="document.getElementById('nav-${bar}-item-gap-value').textContent=this.value+'px'; window.StudioUI.handleNavBarDimensionChange('${bar}','${style}','item_gap',this.value)">
+                </label>
+                <label class="sb-nav-check">
+                    <input type="checkbox" ${showLabels ? "checked" : ""} onchange="window.StudioUI.handleNavBarDimensionChange('${bar}','${style}','show_labels',this.checked)">
+                    <span>\u0625\u0638\u0647\u0627\u0631 \u0623\u0633\u0645\u0627\u0621 \u0627\u0644\u0639\u0646\u0627\u0635\u0631</span>
+                </label>
+                ${bar === "bottom" ? `
+                <div class="sb-nav-desktop-title"><i class="fas fa-mobile-screen-button"></i> \u0625\u0639\u062F\u0627\u062F\u0627\u062A \u0627\u0644\u0647\u0627\u062A\u0641</div>
+                <label class="sb-nav-select">
+                    <span>\u0627\u0644\u0634\u0643\u0644 \u0627\u0644\u0639\u0635\u0631\u064A \u0644\u0644\u0647\u0627\u062A\u0641</span>
+                    <select onchange="window.StudioUI.handleNavBarDimensionChange('bottom','${style}','mobile_shape',this.value)">
+                        ${mobileShapes.map((shape) => `<option value="${shape.key}" ${mobileShape === shape.key ? "selected" : ""}>${shape.label}</option>`).join("")}
+                    </select>
+                </label>
+                <div class="sb-nav-presets">
+                    <span>\u0642\u0648\u0627\u0644\u0628 \u0633\u0631\u064A\u0639\u0629</span>
+                    <div>
+                        <button type="button" onclick="window.StudioUI.handleNavMobilePreset('${style}','balanced')">\u0645\u062A\u0648\u0627\u0632\u0646</button>
+                        <button type="button" onclick="window.StudioUI.handleNavMobilePreset('${style}','minimal')">\u062E\u0641\u064A\u0641</button>
+                        <button type="button" onclick="window.StudioUI.handleNavMobilePreset('${style}','focus')">\u062A\u0631\u0643\u064A\u0632</button>
+                    </div>
+                </div>
+                <label class="sb-nav-range">
+                    <span>\u0639\u0631\u0636 \u0627\u0644\u0634\u0631\u064A\u0637 <b id="nav-bottom-mobile-width-value">${mobileWidth}%</b></span>
+                    <input type="range" min="86" max="100" step="1" value="${mobileWidth}"
+                        oninput="document.getElementById('nav-bottom-mobile-width-value').textContent=this.value+'%'; window.StudioUI.handleNavBarDimensionChange('bottom','${style}','mobile_width',this.value)">
+                </label>
+                <label class="sb-nav-range">
+                    <span>\u0627\u0644\u0627\u0631\u062A\u0641\u0627\u0639 <b id="nav-bottom-mobile-height-value">${values.mobile_height ?? height}px</b></span>
+                    <input type="range" min="54" max="94" step="1" value="${values.mobile_height ?? height}"
+                        oninput="document.getElementById('nav-bottom-mobile-height-value').textContent=this.value+'px'; window.StudioUI.handleNavBarDimensionChange('bottom','${style}','mobile_height',this.value)">
+                </label>
+                <label class="sb-nav-range">
+                    <span>\u0627\u0644\u0645\u0633\u0627\u0641\u0629 \u0645\u0646 \u0627\u0644\u0623\u0633\u0641\u0644 <b id="nav-bottom-mobile-bottom-value">${mobileBottom}px</b></span>
+                    <input type="range" min="0" max="28" step="1" value="${mobileBottom}"
+                        oninput="document.getElementById('nav-bottom-mobile-bottom-value').textContent=this.value+'px'; window.StudioUI.handleNavBarDimensionChange('bottom','${style}','mobile_bottom',this.value)">
+                </label>
+                <div class="sb-nav-desktop-title"><i class="fas fa-desktop"></i> \u0625\u0639\u062F\u0627\u062F\u0627\u062A \u0627\u0644\u0643\u0645\u0628\u064A\u0648\u062A\u0631</div>
+                <label class="sb-nav-range">
+                    <span>\u0639\u0631\u0636 \u0627\u0644\u0634\u0631\u064A\u0637 <b id="nav-bottom-width-value">${desktopWidth}px</b></span>
+                    <input type="range" min="320" max="1100" step="10" value="${desktopWidth}"
+                        oninput="document.getElementById('nav-bottom-width-value').textContent=this.value+'px'; window.StudioUI.handleNavBarDimensionChange('bottom','${style}','desktop_width',this.value)">
+                </label>
+                <label class="sb-nav-range">
+                    <span>\u0627\u0644\u0627\u0631\u062A\u0641\u0627\u0639 \u0641\u064A \u0627\u0644\u0643\u0645\u0628\u064A\u0648\u062A\u0631 <b id="nav-bottom-desktop-height-value">${values.desktop_height ?? height}px</b></span>
+                    <input type="range" min="52" max="100" step="1" value="${values.desktop_height ?? height}"
+                        oninput="document.getElementById('nav-bottom-desktop-height-value').textContent=this.value+'px'; window.StudioUI.handleNavBarDimensionChange('bottom','${style}','desktop_height',this.value)">
+                </label>
+                <label class="sb-nav-range">
+                    <span>\u0627\u0644\u0645\u0633\u0627\u0641\u0629 \u0645\u0646 \u0627\u0644\u0623\u0633\u0641\u0644 <b id="nav-bottom-bottom-value">${desktopBottom}px</b></span>
+                    <input type="range" min="0" max="80" step="1" value="${desktopBottom}"
+                        oninput="document.getElementById('nav-bottom-bottom-value').textContent=this.value+'px'; window.StudioUI.handleNavBarDimensionChange('bottom','${style}','desktop_bottom',this.value)">
+                </label>
+                <label class="sb-nav-select">
+                    <span>\u062A\u062E\u0637\u064A\u0637 \u0627\u0644\u0643\u0645\u0628\u064A\u0648\u062A\u0631</span>
+                    <select onchange="window.StudioUI.handleNavBarDimensionChange('bottom','${style}','desktop_layout',this.value)">
+                        <option value="dock" ${desktopLayout === "dock" ? "selected" : ""}>Dock \u0648\u0633\u0637 \u0627\u0644\u0634\u0627\u0634\u0629</option>
+                        <option value="wide" ${desktopLayout === "wide" ? "selected" : ""}>\u0634\u0631\u064A\u0637 \u0639\u0631\u064A\u0636</option>
+                        <option value="compact" ${desktopLayout === "compact" ? "selected" : ""}>\u0645\u0636\u063A\u0648\u0637</option>
+                    </select>
+                </label>` : ""}
+                ${bar === "bottom" ? `
+                <div class="sb-nav-presets">
+                    <span>\u0642\u0648\u0627\u0644\u0628 \u0627\u0644\u0643\u0645\u0628\u064A\u0648\u062A\u0631</span>
+                    <div>
+                        <button type="button" onclick="window.StudioUI.handleNavDesktopPreset('${style}','dock')">Dock \u0623\u0646\u064A\u0642</button>
+                        <button type="button" onclick="window.StudioUI.handleNavDesktopPreset('${style}','wide')">\u0639\u0631\u064A\u0636</button>
+                        <button type="button" onclick="window.StudioUI.handleNavDesktopPreset('${style}','compact')">\u0645\u0636\u063A\u0648\u0637</button>
+                    </div>
+                </div>` : ""}
+            </div>`;
+    };
     const renderIconSelect = (itemId, currentIcon) => {
       const opts = ICON_OPTIONS[itemId] || ["fa-circle"];
       let html = `<select class="sb-select" style="font-size:0.78rem;padding:5px 8px;width:auto;min-width:110px;" onchange="window.StudioUI.handleNavBottomItemChange('${itemId}','icon',this.value)">`;
@@ -5524,16 +5433,16 @@ var NavigationTab = class {
       const item = bottomItems[idx];
       const isFirst = idx === 0;
       const isLast = idx === bottomItems.length - 1;
-      itemsHtml += `<div draggable="true" ondragstart="window.StudioUI.handleNavBottomItemDragStart('${item.id}')" ondragover="event.preventDefault()" ondrop="window.StudioUI.handleNavBottomItemDrop('${item.id}')" style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--sb-surface,#f8f9fb);border:1px solid var(--sb-border,#e8eaed);border-radius:12px;margin-bottom:8px;box-shadow:0 2px 8px rgba(15,23,42,0.04);${!item.visible ? "opacity:0.55;" : ""}">
-               <div title="\u0627\u0633\u062D\u0628 \u0644\u0625\u0639\u0627\u062F\u0629 \u062A\u0631\u062A\u064A\u0628 \u0627\u0644\u0639\u0646\u0635\u0631" style="width:38px;height:38px;border-radius:10px;background:linear-gradient(135deg,var(--sb-primary,#6366F1),var(--sb-primary-strong,#4F46E5));display:flex;align-items:center;justify-content:center;color:#fff;font-size:0.9rem;flex-shrink:0;cursor:grab;box-shadow:0 6px 18px rgba(99,102,241,0.18);"><i class="fas ${item.icon}"></i></div>
-                <div style="display:flex;flex-direction:column;gap:2px;flex-shrink:0;">
-                    <button onclick="window.StudioUI.handleNavBottomItemMove('${item.id}','up')" ${isFirst ? "disabled" : ""} style="background:var(--sb-bg,#fff);border:1px solid var(--sb-border,#e8eaed);border-radius:5px;width:22px;height:20px;cursor:pointer;font-size:0.65rem;display:flex;align-items:center;justify-content:center;${isFirst ? "opacity:0.3;cursor:not-allowed;" : ""}">\u2191</button>
-                    <button onclick="window.StudioUI.handleNavBottomItemMove('${item.id}','down')" ${isLast ? "disabled" : ""} style="background:var(--sb-bg,#fff);border:1px solid var(--sb-border,#e8eaed);border-radius:5px;width:22px;height:20px;cursor:pointer;font-size:0.65rem;display:flex;align-items:center;justify-content:center;${isLast ? "opacity:0.3;cursor:not-allowed;" : ""}">\u2193</button>
+      itemsHtml += `<div draggable="true" ondragstart="window.StudioUI.handleNavBottomItemDragStart('${item.id}')" ondragover="event.preventDefault()" ondrop="window.StudioUI.handleNavBottomItemDrop('${item.id}')" style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--sb-card);border:1px solid var(--sb-border);border-radius:12px;margin-bottom:8px;box-shadow:0 2px 8px rgba(0,0,0,0.2);${!item.visible ? "opacity:0.55;" : ""}">
+               <div title="\u0627\u0633\u062D\u0628 \u0644\u0625\u0639\u0627\u062F\u0629 \u062A\u0631\u062A\u064A\u0628 \u0627\u0644\u0639\u0646\u0635\u0631" style="width:38px;height:38px;border-radius:10px;background:var(--sb-primary-gradient);display:flex;align-items:center;justify-content:center;color:#fff;font-size:0.95rem;flex-shrink:0;cursor:grab;box-shadow:0 4px 12px var(--sb-primary-glow);"><i class="fas ${item.icon}"></i></div>
+                <div style="display:flex;flex-direction:column;gap:3px;flex-shrink:0;">
+                    <button onclick="window.StudioUI.handleNavBottomItemMove('${item.id}','up')" ${isFirst ? "disabled" : ""} style="background:var(--sb-surface);color:var(--sb-text);border:1px solid var(--sb-border);border-radius:6px;width:28px;height:24px;cursor:pointer;font-size:0.75rem;display:flex;align-items:center;justify-content:center;${isFirst ? "opacity:0.3;cursor:not-allowed;" : ""}" title="\u062A\u062D\u0631\u064A\u0643 \u0644\u0623\u0639\u0644\u0649">\u2191</button>
+                    <button onclick="window.StudioUI.handleNavBottomItemMove('${item.id}','down')" ${isLast ? "disabled" : ""} style="background:var(--sb-surface);color:var(--sb-text);border:1px solid var(--sb-border);border-radius:6px;width:28px;height:24px;cursor:pointer;font-size:0.75rem;display:flex;align-items:center;justify-content:center;${isLast ? "opacity:0.3;cursor:not-allowed;" : ""}" title="\u062A\u062D\u0631\u064A\u0643 \u0644\u0623\u0633\u0641\u0644">\u2193</button>
                 </div>
                 <div style="flex:1;display:flex;flex-direction:column;gap:6px;">
                     <div style="display:flex;align-items:center;gap:6px;">
-                        <span style="font-size:0.68rem;color:var(--sb-muted,#6b7280);display:inline-flex;align-items:center;gap:4px;letter-spacing:0.02em;">\u22EE\u22EE <span>\u0627\u0633\u062D\u0628</span></span>
-                        <input type="text" class="sb-input" value="${item.label}" style="font-size:0.82rem;padding:5px 8px;flex:1;min-width:60px;" onchange="window.StudioUI.handleNavBottomItemChange('${item.id}','label',this.value)" placeholder="\u0627\u0644\u0627\u0633\u0645">
+                        <span style="font-size:0.68rem;color:var(--sb-muted);display:inline-flex;align-items:center;gap:4px;letter-spacing:0.02em;">\u22EE\u22EE <span>\u0631\u062A\u0628</span></span>
+                        <input type="text" class="sb-input" value="${item.label}" style="font-size:0.82rem;padding:6px 8px;flex:1;min-width:60px;" onchange="window.StudioUI.handleNavBottomItemChange('${item.id}','label',this.value)" placeholder="\u0627\u0644\u0627\u0633\u0645">
                         ${renderIconSelect(item.id, item.icon)}
                     </div>
                 </div>
@@ -5558,9 +5467,9 @@ var NavigationTab = class {
       const isActive = topBar.logo_icon === ic;
       logoIconsHtml += `<button title="${lbl}" onclick="window.StudioUI.handleNavTopBarChange('logo_icon','${ic}')"
                 style="width:44px;height:44px;border-radius:12px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;cursor:pointer;
-                border:2px solid ${isActive ? "var(--sb-primary,#6366F1)" : "var(--sb-border,#e8eaed)"};
-                background:${isActive ? "rgba(99,102,241,0.12)" : "var(--sb-surface,#f8f9fb)"};
-                font-size:1.1rem;color:${isActive ? "var(--sb-primary,#6366F1)" : "var(--sb-muted,#6b7280)"};"><i class="fas ${ic}"></i></button>`;
+                border:2px solid ${isActive ? "var(--sb-primary)" : "var(--sb-border)"};
+                background:${isActive ? "rgba(99,102,241,0.18)" : "var(--sb-surface)"};
+                font-size:1.1rem;color:${isActive ? "var(--sb-primary)" : "var(--sb-muted)"};"><i class="fas ${ic}"></i></button>`;
     }
     const presetButtons = Object.keys(NAVIGATION_PRESETS).map((key) => `
             <button class="sb-btn-outline" style="font-size:0.75rem;padding:6px 10px;" onclick="window.StudioUI.handleNavPreset('${key}')">
@@ -5584,9 +5493,9 @@ var NavigationTab = class {
             <div class="sb-card-group">
                 <div class="sb-group-header">
                     <i class="fas fa-grip-horizontal" style="color:var(--sb-primary);"></i>
-                    <h3>\u0627\u0644\u0634\u0631\u064A\u0637 \u0627\u0644\u0633\u0641\u0644\u064A (Bottom Bar)</h3>
+                    <h3>\u0639\u0646\u0627\u0635\u0631 \u0627\u0644\u0634\u0631\u064A\u0637 \u0627\u0644\u0633\u0641\u0644\u064A</h3>
                 </div>
-                <p style="font-size:0.82rem;color:var(--sb-muted,#6b7280);margin:0 0 14px;padding:0 4px;">\u0631\u062A\u0651\u0628 \u0639\u0646\u0627\u0635\u0631 \u0627\u0644\u0634\u0631\u064A\u0637 \u0627\u0644\u0633\u0641\u0644\u064A \u0628\u0627\u0644\u0623\u0633\u0647\u0645 \u2191\u2193 \u0648\u0633\u062D\u0628 \u0627\u0644\u0639\u0646\u0627\u0635\u0631 \u062F\u0627\u062E\u0644 \u0627\u0644\u0642\u0627\u0626\u0645\u0629. \u0627\u0644\u0639\u0646\u0627\u0635\u0631 \u0627\u0644\u0645\u062D\u0645\u064A\u0629 \u0647\u064A \u0627\u0644\u0631\u0626\u064A\u0633\u064A\u0629 \u0648\u0627\u0644\u0633\u0644\u0629\u060C \u0645\u0639 \u062D\u062F \u0623\u062F\u0646\u0649 2 \u0639\u0646\u0627\u0635\u0631 \u0645\u0631\u0626\u064A\u0629 \u0644\u062D\u0641\u0627\u0638 \u062A\u062C\u0631\u0628\u0629 \u0627\u0644\u062A\u0646\u0642\u0644.</p>
+                <p style="font-size:0.82rem;color:var(--sb-muted,#6b7280);margin:0 0 14px;padding:0 4px;">\u0631\u062A\u0651\u0628 \u0627\u0644\u0639\u0646\u0627\u0635\u0631 \u0623\u0648 \u063A\u064A\u0651\u0631 \u0627\u0633\u0645\u0647\u0627 \u0648\u0623\u064A\u0642\u0648\u0646\u062A\u0647\u0627 \u0648\u0638\u0647\u0648\u0631\u0647\u0627. \u0633\u064A\u062A\u0645 \u0627\u0644\u062D\u0641\u0627\u0638 \u062A\u0644\u0642\u0627\u0626\u064A\u0627\u064B \u0639\u0644\u0649 \u0639\u0646\u0635\u0631\u064A\u0646 \u0645\u0631\u0626\u064A\u064A\u0646 \u0639\u0644\u0649 \u0627\u0644\u0623\u0642\u0644.</p>
                 ${itemsHtml}
                 <div style="display:flex;gap:8px;flex-wrap:wrap;">
                     <button class="sb-btn-outline" style="flex:1;min-width:140px;margin-top:10px;font-size:0.82rem;" onclick="window.StudioUI.handleNavResetBottomBar()">
@@ -5600,8 +5509,38 @@ var NavigationTab = class {
 
             <div class="sb-card-group">
                 <div class="sb-group-header">
+                    <i class="fas fa-mobile-screen-button" style="color:var(--sb-primary);"></i>
+                    <h3>\u0645\u0638\u0647\u0631 \u0627\u0644\u0634\u0631\u064A\u0637 \u0627\u0644\u0633\u0641\u0644\u064A</h3>
+                </div>
+                <p class="sb-settings-hint">\u0627\u062E\u062A\u0631 \u0627\u0644\u0634\u0643\u0644 \u0623\u0648\u0644\u0627\u064B\u060C \u062B\u0645 \u0627\u0636\u0628\u0637 \u0625\u0639\u062F\u0627\u062F\u0627\u062A \u0627\u0644\u0647\u0627\u062A\u0641 \u0648\u0627\u0644\u0643\u0645\u0628\u064A\u0648\u062A\u0631 \u0627\u0644\u062E\u0627\u0635\u0629 \u0628\u0647\u0630\u0627 \u0627\u0644\u0634\u0643\u0644.</p>
+                <div class="sb-fields-grid">
+                    <div class="sb-field-card">
+                        <label class="sb-field-label">\u0627\u0644\u0634\u0643\u0644 \u0627\u0644\u0623\u0633\u0627\u0633\u064A</label>
+                        <div class="sb-card-style-grid">${renderStyleOptions(bottomBarStyle, "handleNavBottomBarStyleChange")}</div>
+                        ${renderSizeControls("bottom", bottomBarStyle, bottomBarSize)}
+                    </div>
+                </div>
+            </div>
+
+            <div class="sb-card-group">
+                <div class="sb-group-header">
                     <i class="fas fa-bars" style="color:var(--sb-primary);"></i>
-                    <h3>\u0627\u0644\u0634\u0631\u064A\u0637 \u0627\u0644\u0639\u0644\u0648\u064A (Header)</h3>
+                    <h3>\u0645\u0638\u0647\u0631 \u0627\u0644\u0634\u0631\u064A\u0637 \u0627\u0644\u0639\u0644\u0648\u064A</h3>
+                </div>
+                <p class="sb-settings-hint">\u0647\u0630\u0647 \u0627\u0644\u0625\u0639\u062F\u0627\u062F\u0627\u062A \u062A\u062E\u0635 \u0627\u0644\u0634\u0631\u064A\u0637 \u0627\u0644\u0639\u0644\u0648\u064A \u0641\u0642\u0637\u060C \u0648\u064A\u0645\u0643\u0646 \u062D\u0641\u0638\u0647\u0627 \u0628\u0634\u0643\u0644 \u0645\u0633\u062A\u0642\u0644 \u0644\u0643\u0644 \u0634\u0643\u0644.</p>
+                <div class="sb-fields-grid">
+                    <div class="sb-field-card">
+                        <label class="sb-field-label">\u0627\u0644\u0634\u0643\u0644 \u0627\u0644\u0623\u0633\u0627\u0633\u064A</label>
+                        <div class="sb-card-style-grid">${renderStyleOptions(topBarStyle, "handleNavTopBarStyleChange")}</div>
+                        ${renderSizeControls("top", topBarStyle, topBarSize)}
+                    </div>
+                </div>
+            </div>
+
+            <div class="sb-card-group">
+                <div class="sb-group-header">
+                    <i class="fas fa-sliders" style="color:var(--sb-primary);"></i>
+                    <h3>\u0623\u0632\u0631\u0627\u0631 \u0627\u0644\u0634\u0631\u064A\u0637 \u0627\u0644\u0639\u0644\u0648\u064A</h3>
                 </div>
                 <div class="sb-fields-grid">
                     <div class="sb-field-card" style="grid-column:1/-1;">
@@ -5657,19 +5596,18 @@ var NavigationTab = class {
 // src/studio/components/Sidebar.ts
 var Sidebar = class _Sidebar {
   static TAB_ITEMS = [
-    { key: "identity", label: "\u0627\u0644\u0647\u0648\u064A\u0629", icon: "fa-store", color: "#6366F1" },
-    { key: "ai_palette", label: "20 \u062B\u064A\u0645", icon: "fa-palette", color: "#A78BFA" },
-    { key: "light_colors", label: "\u0627\u0644\u0641\u0627\u062A\u062D", icon: "fa-sun", color: "#F59E0B" },
-    { key: "dark_colors", label: "\u0627\u0644\u062F\u0627\u0643\u0646", icon: "fa-moon", color: "#818CF8" },
-    { key: "products_layout", label: "\u0627\u0644\u0645\u0646\u062A\u062C\u0627\u062A", icon: "fa-boxes-stacked", color: "#10B981" },
-    { key: "sections", label: "\u0627\u0644\u0623\u0642\u0633\u0627\u0645", icon: "fa-layer-group", color: "#06B6D4" },
-    { key: "navigation", label: "\u0627\u0644\u0623\u0634\u0631\u0637\u0629", icon: "fa-bars", color: "#0EA5E9" },
-    { key: "typography", label: "\u0627\u0644\u062E\u0637\u0648\u0637", icon: "fa-font", color: "#14B8A6" },
-    { key: "shapes", label: "\u0627\u0644\u0623\u0634\u0643\u0627\u0644", icon: "fa-shapes", color: "#FBBF24" },
-    { key: "messages", label: "\u0627\u0644\u0631\u0633\u0627\u0626\u0644", icon: "fa-comments", color: "#EC4899" },
-    { key: "modals", label: "\u0627\u0644\u0646\u0648\u0627\u0641\u0630", icon: "fa-window-restore", color: "#F43F5E" },
-    { key: "marketing", label: "\u062A\u0633\u0648\u064A\u0642", icon: "fa-bullhorn", color: "#EF4444" },
-    { key: "json", label: "JSON", icon: "fa-code", color: "#94A3B8" }
+    { key: "identity", label: "\u0627\u0644\u0647\u0648\u064A\u0629", icon: "fa-store", color: "#6366F1", group: "\u0623\u0633\u0627\u0633\u064A\u0627\u062A \u0627\u0644\u0645\u062A\u062C\u0631", kicker: "\u0628\u064A\u0627\u0646\u0627\u062A \u0627\u0644\u0645\u062A\u062C\u0631 \u0648\u0627\u0644\u062A\u0631\u0648\u064A\u062C" },
+    { key: "ai_palette", label: "20 \u062B\u064A\u0645", icon: "fa-palette", color: "#A78BFA", group: "\u0623\u0633\u0627\u0633\u064A\u0627\u062A \u0627\u0644\u0645\u062A\u062C\u0631", kicker: "\u0628\u0627\u0642\u0629 \u0627\u0644\u062B\u064A\u0645\u0627\u062A \u0627\u0644\u0645\u062A\u0646\u0627\u0633\u0642\u0629" },
+    { key: "light_colors", label: "\u0627\u0644\u0641\u0627\u062A\u062D", icon: "fa-sun", color: "#F59E0B", group: "\u0623\u0633\u0627\u0633\u064A\u0627\u062A \u0627\u0644\u0645\u062A\u062C\u0631", kicker: "\u0623\u0644\u0648\u0627\u0646 \u0648\u0645\u0638\u0647\u0631 \u0627\u0644\u0648\u0636\u0639 \u0627\u0644\u0646\u0647\u0627\u0631\u064A" },
+    { key: "dark_colors", label: "\u0627\u0644\u062F\u0627\u0643\u0646", icon: "fa-moon", color: "#818CF8", group: "\u0623\u0633\u0627\u0633\u064A\u0627\u062A \u0627\u0644\u0645\u062A\u062C\u0631", kicker: "\u0623\u0644\u0648\u0627\u0646 \u0648\u0645\u0638\u0647\u0631 \u0627\u0644\u0648\u0636\u0639 \u0627\u0644\u0644\u064A\u0644\u064A" },
+    { key: "products_layout", label: "\u0627\u0644\u0645\u0646\u062A\u062C\u0627\u062A", icon: "fa-boxes-stacked", color: "#10B981", group: "\u062A\u062E\u0637\u064A\u0637 \u0627\u0644\u0645\u062A\u062C\u0631", kicker: "\u0623\u0639\u0645\u062F\u0629 \u0648\u0633\u0644\u0627\u064A\u062F\u0631 \u0627\u0644\u0645\u0646\u062A\u062C\u0627\u062A" },
+    { key: "sections", label: "\u0627\u0644\u0623\u0642\u0633\u0627\u0645", icon: "fa-layer-group", color: "#06B6D4", group: "\u062A\u062E\u0637\u064A\u0637 \u0627\u0644\u0645\u062A\u062C\u0631", kicker: "\u062A\u0631\u062A\u064A\u0628 \u0648\u0638\u0647\u0648\u0631 \u0627\u0644\u0623\u0642\u0633\u0627\u0645" },
+    { key: "navigation", label: "\u0627\u0644\u0623\u0634\u0631\u0637\u0629", icon: "fa-bars", color: "#0EA5E9", group: "\u062A\u062E\u0637\u064A\u0637 \u0627\u0644\u0645\u062A\u062C\u0631", kicker: "\u0623\u0634\u0631\u0637\u0629 \u0627\u0644\u062A\u0646\u0642\u0644 \u0627\u0644\u0639\u0644\u0648\u064A\u0629 \u0648\u0627\u0644\u0633\u0641\u0644\u064A\u0629" },
+    { key: "typography", label: "\u0627\u0644\u062E\u0637\u0648\u0637", icon: "fa-font", color: "#14B8A6", group: "\u062A\u062E\u0637\u064A\u0637 \u0627\u0644\u0645\u062A\u062C\u0631", kicker: "\u0627\u0644\u062E\u0637\u0648\u0637 \u0627\u0644\u0639\u0631\u0628\u064A\u0629 \u0648\u0623\u062D\u062C\u0627\u0645 \u0627\u0644\u0646\u0635\u0648\u0635" },
+    { key: "messages", label: "\u0627\u0644\u0631\u0633\u0627\u0626\u0644", icon: "fa-comments", color: "#EC4899", group: "\u062A\u062C\u0631\u0628\u0629 \u0627\u0644\u0645\u0633\u062A\u062E\u062F\u0645", kicker: "\u0631\u0633\u0627\u0626\u0644 \u0627\u0644\u062A\u0646\u0628\u064A\u0647\u0627\u062A \u0648\u0627\u0644\u0645\u0633\u0627\u0639\u062F \u0627\u0644\u0630\u0643\u064A" },
+    { key: "modals", label: "\u0627\u0644\u0646\u0648\u0627\u0641\u0630", icon: "fa-window-restore", color: "#F43F5E", group: "\u062A\u062C\u0631\u0628\u0629 \u0627\u0644\u0645\u0633\u062A\u062E\u062F\u0645", kicker: "\u0634\u064A\u062A \u0627\u0644\u062A\u0641\u0627\u0635\u064A\u0644 \u0648\u0633\u0644\u0629 \u0627\u0644\u0645\u0634\u062A\u0631\u064A\u0627\u062A" },
+    { key: "marketing", label: "\u062A\u0633\u0648\u064A\u0642", icon: "fa-bullhorn", color: "#EF4444", group: "\u062A\u062C\u0631\u0628\u0629 \u0627\u0644\u0645\u0633\u062A\u062E\u062F\u0645", kicker: "\u0648\u0627\u062A\u0633\u0627\u0628 \u0639\u0627\u0626\u0645 \u0648\u0634\u0631\u064A\u0637 \u0627\u0644\u0634\u062D\u0646" },
+    { key: "json", label: "JSON", icon: "fa-code", color: "#94A3B8", group: "\u0645\u062A\u0642\u062F\u0645", kicker: "\u0645\u062D\u0631\u0631 \u0627\u0644\u0628\u0631\u0648\u0645\u0628\u062A \u0648\u0645\u0644\u0641 JSON" }
   ];
   static TAB_GROUPS = [
     {
@@ -5678,7 +5616,7 @@ var Sidebar = class _Sidebar {
     },
     {
       title: "\u062A\u062E\u0637\u064A\u0637 \u0627\u0644\u0645\u062A\u062C\u0631",
-      tabs: ["products_layout", "sections", "navigation", "typography", "shapes"]
+      tabs: ["products_layout", "sections", "navigation", "typography"]
     },
     {
       title: "\u062A\u062C\u0631\u0628\u0629 \u0627\u0644\u0645\u0633\u062A\u062E\u062F\u0645",
@@ -5689,6 +5627,9 @@ var Sidebar = class _Sidebar {
       tabs: ["json"]
     }
   ];
+  static getTabInfo(tabKey) {
+    return _Sidebar.TAB_ITEMS.find((item) => item.key === tabKey) || _Sidebar.TAB_ITEMS[0];
+  }
   static renderTabContent(tabKey = studioState.activeTab) {
     switch (tabKey) {
       case "identity":
@@ -5709,8 +5650,6 @@ var Sidebar = class _Sidebar {
         return AIPaletteTab.render();
       case "typography":
         return TypographyTab.render();
-      case "shapes":
-        return ShapesTab.render();
       case "navigation":
         return NavigationTab.render();
       case "marketing":
@@ -5723,59 +5662,65 @@ var Sidebar = class _Sidebar {
   }
   static render() {
     const { activeTab } = studioState;
+    const currentTab = _Sidebar.getTabInfo(activeTab);
     const tabContentHtml = _Sidebar.renderTabContent(activeTab);
     return `
         <aside class="sb-sidebar-pane">
-            <nav class="sb-nav-rail" id="sb-tabs-rail">
-                ${_Sidebar.TAB_GROUPS.flatMap((group) => group.tabs).map((tabKey) => {
-      const tab = _Sidebar.TAB_ITEMS.find((item) => item.key === tabKey);
-      if (!tab) return "";
+            <!-- 1. \u0634\u0631\u064A\u0637 \u0627\u0644\u062A\u0646\u0642\u0644 \u0627\u0644\u0639\u0645\u0648\u062F\u064A \u0627\u0644\u0643\u0644\u0627\u0633\u064A\u0643\u064A (\u064A\u0638\u0647\u0631 \u0639\u0644\u0649 \u0627\u0644\u0634\u0627\u0634\u0627\u062A \u0627\u0644\u0643\u0628\u064A\u0631\u0629) -->
+            <nav class="sb-nav-rail" id="sb-tabs-rail" aria-label="\u062A\u0628\u0648\u064A\u0628\u0627\u062A \u0627\u0644\u062A\u062E\u0635\u064A\u0635">
+                ${_Sidebar.TAB_GROUPS.map((group) => `
+                    <div class="sb-rail-group">
+                        <span class="sb-rail-group-title">${group.title}</span>
+                        ${group.tabs.map((tabKey) => {
+      const tab = _Sidebar.getTabInfo(tabKey);
       return `
-                        <button class="sb-rail-btn ${activeTab === tab.key ? "active" : ""}" 
-                                data-tab="${tab.key}"
-                                onclick="window.StudioUI.setActiveTab('${tab.key}')" 
-                                title="${tab.label}">
-                            <div class="sb-rail-icon" style="color: ${tab.color};">
-                                <i class="fas ${tab.icon}"></i>
-                            </div>
-                            <span class="sb-rail-label">${tab.label}</span>
-                        </button>
-                    `;
+                                <button class="sb-rail-btn ${activeTab === tab.key ? "active" : ""}" 
+                                        data-tab="${tab.key}"
+                                        onclick="window.StudioUI.setActiveTab('${tab.key}')" 
+                                        title="${tab.label}">
+                                    <div class="sb-rail-icon" style="color: ${tab.color};">
+                                        <i class="fas ${tab.icon}"></i>
+                                    </div>
+                                    <span class="sb-rail-label">${tab.label}</span>
+                                </button>
+                            `;
     }).join("")}
+                    </div>
+                `).join("")}
             </nav>
 
-            <div class="sb-tab-content-wrapper" id="sb-tab-content-area">
+            <!-- 2. \u062C\u0633\u0645 \u0644\u0648\u062D\u0629 \u0627\u0644\u062A\u062D\u0643\u0645 \u0627\u0644\u0631\u0626\u064A\u0633\u064A -->
+            <div class="sb-sidebar-main">
+                <!-- \u0631\u0623\u0633 \u0627\u0644\u0644\u0648\u062D\u0629 \u0627\u0644\u062B\u0627\u0628\u062A (\u0644\u0627 \u064A\u062E\u062A\u0641\u064A \u0639\u0646\u062F \u062A\u0628\u062F\u064A\u0644 \u0627\u0644\u062A\u0628\u0648\u064A\u0628\u0627\u062A) -->
                 <div class="sb-sidebar-header">
                     <div>
-                        <span class="sb-sidebar-kicker">\u0625\u0639\u062F\u0627\u062F\u0627\u062A \u0627\u0644\u0645\u062A\u062C\u0631</span>
-                        <h2>\u0644\u0648\u062D\u0629 \u0627\u0644\u062A\u062E\u0635\u064A\u0635</h2>
+                        <span class="sb-sidebar-kicker" id="sb-active-kicker">${currentTab.kicker}</span>
+                        <div class="sb-sidebar-title-row">
+                            <h2 id="sb-active-title">${currentTab.label}</h2>
+                            <span class="sb-setting-count">${_Sidebar.TAB_ITEMS.length} \u0625\u0639\u062F\u0627\u062F\u0627\u062A</span>
+                        </div>
                     </div>
-                    <button class="sb-mini-btn" onclick="window.StudioUI.openHelpModal()">
-                        <i class="fas fa-lightbulb"></i>
+                    <button class="sb-mini-btn" onclick="window.StudioUI.openHelpModal()" title="\u062A\u0639\u0644\u064A\u0645\u0627\u062A \u0627\u0644\u0627\u0633\u062A\u0648\u062F\u064A\u0648">
+                        <i class="fas fa-lightbulb" style="color:#FBBF24;"></i>
                     </button>
                 </div>
 
-                <div class="sb-tab-group-list">
-                    ${_Sidebar.TAB_GROUPS.map((group) => `
-                        <div class="sb-tab-group">
-                            <div class="sb-tab-group-header">${group.title}</div>
-                            <div class="sb-tab-group-links">
-                                ${group.tabs.map((tabKey) => {
-      const tab = _Sidebar.TAB_ITEMS.find((item) => item.key === tabKey);
-      if (!tab) return "";
-      return `
-                                        <button class="sb-tab-link ${activeTab === tab.key ? "active" : ""}" data-tab="${tab.key}" onclick="window.StudioUI.setActiveTab('${tab.key}')">
-                                            <span class="sb-tab-link-icon" style="color: ${tab.color};"><i class="fas ${tab.icon}"></i></span>
-                                            <span>${tab.label}</span>
-                                        </button>
-                                    `;
-    }).join("")}
-                            </div>
-                        </div>
+                <!-- \u0634\u0631\u064A\u0637 \u0627\u0644\u062A\u0628\u0648\u064A\u0628\u0627\u062A \u0627\u0644\u0623\u0641\u0642\u064A \u0644\u0644\u0647\u0648\u0627\u062A\u0641 \u0648\u0627\u0644\u0623\u062C\u0647\u0632\u0629 \u0627\u0644\u0644\u0648\u062D\u064A\u0629 (\u064A\u0638\u0647\u0631 \u062A\u0644\u0642\u0627\u0626\u064A\u0627\u064B \u0639\u0644\u0649 \u0627\u0644\u0634\u0627\u0634\u0627\u062A <900px) -->
+                <nav class="sb-mobile-tabs-bar" id="sb-mobile-tabs-bar" aria-label="\u062A\u0628\u0648\u064A\u0628\u0627\u062A \u0627\u0644\u0645\u0648\u0628\u0627\u064A\u0644">
+                    ${_Sidebar.TAB_ITEMS.map((tab) => `
+                        <button class="sb-mobile-tab-pill ${activeTab === tab.key ? "active" : ""}" 
+                                data-tab="${tab.key}"
+                                onclick="window.StudioUI.setActiveTab('${tab.key}')">
+                            <i class="fas ${tab.icon}" style="color: ${tab.color};"></i>
+                            <span>${tab.label}</span>
+                        </button>
                     `).join("")}
-                </div>
+                </nav>
 
-                ${tabContentHtml}
+                <!-- \u0645\u0646\u0637\u0642\u0629 \u0645\u062D\u062A\u0648\u0649 \u0627\u0644\u062A\u0628\u0648\u064A\u0628 \u0627\u0644\u0646\u0634\u0637 (\u0642\u0627\u0628\u0644\u0629 \u0644\u0644\u062A\u0645\u0631\u064A\u0631 \u0627\u0644\u0627\u0646\u0633\u064A\u0627\u0628\u064A) -->
+                <div class="sb-tab-content-wrapper" id="sb-tab-content-area">
+                    ${tabContentHtml}
+                </div>
             </div>
         </aside>
         `;
@@ -5789,7 +5734,7 @@ var Preview = class {
     const deviceClass = `preview-frame-${currentDevice}`;
     return `
         <section class="sb-preview-pane">
-            <div class="sb-preview-device-switcher" aria-label="\u0627\u062E\u062A\u064A\u0627\u0631 \u062D\u062C\u0645 \u0627\u0644\u0645\u0639\u0627\u064A\u0646\u0629">
+            <div class="sb-preview-device-switcher ${currentDevice === "desktop" ? "is-desktop" : ""}" id="preview-device-switcher" aria-label="\u0627\u062E\u062A\u064A\u0627\u0631 \u062D\u062C\u0645 \u0627\u0644\u0645\u0639\u0627\u064A\u0646\u0629">
                 <button class="sb-device-btn ${currentDevice === "mobile" ? "active" : ""}" data-device="mobile" onclick="window.StudioUI.setDevice('mobile')" title="\u062C\u0648\u0627\u0644">
                     <i class="fas fa-mobile-alt"></i>
                     <span>\u062C\u0648\u0627\u0644</span>
@@ -5804,7 +5749,7 @@ var Preview = class {
                 </button>
             </div>
             <div class="sb-preview-wrapper ${deviceClass}" id="preview-wrapper">
-                <div class="sb-device-header ${currentDevice === "desktop" ? "hidden" : ""}">
+                <div class="sb-device-header ${currentDevice === "desktop" ? "hidden" : ""}" id="preview-device-header">
                     <div class="sb-device-speaker"></div>
                     <div class="sb-device-camera"></div>
                 </div>
@@ -5903,7 +5848,7 @@ var HelpModal = class {
                 </div>
 
                 <div style="display:flex; justify-content:flex-end; margin-top:20px;">
-                    <button class="btn-sb-primary" style="width:100%; justify-content:center; padding:12px;" onclick="window.StudioUI.closeHelpModal()">
+                    <button class="sb-btn sb-btn-primary" style="width:100%; justify-content:center; padding:12px;" onclick="window.StudioUI.closeHelpModal()">
                         \u0641\u0647\u0645\u062A\u060C \u0644\u0646\u0628\u062F\u0623 \u0627\u0644\u062A\u062E\u0635\u064A\u0635! \u2728
                     </button>
                 </div>
@@ -6192,7 +6137,258 @@ function buildDarkPaletteFromSeeds(seeds = {}) {
   };
 }
 
+// src/studio/styleLibrary.ts
+var STORE_STYLE_LIBRARY = {
+  "modern-soft": {
+    id: "modern-soft",
+    name: "Modern Soft",
+    label: "\u062D\u062F\u064A\u062B \u0646\u0627\u0639\u0645",
+    description: "\u0645\u0638\u0647\u0631 \u0623\u0646\u064A\u0642 \u0644\u0644\u0645\u062A\u062C\u0631 \u0627\u0644\u062D\u062F\u064A\u062B \u0645\u0639 \u062D\u0648\u0627\u0641 \u062F\u0642\u064A\u0642\u0629 \u0648\u0623\u0632\u0631\u0627\u0631 \u0645\u0631\u064A\u062D\u0629.",
+    accent: "#6366F1",
+    cardRadius: "18px",
+    buttonStyle: "pill",
+    buttonRadius: "9999px",
+    animation: "lift",
+    displayMode: "by_categories_sections",
+    cardStyle: "classic",
+    cardOrientation: "portrait",
+    navbarStyle: "glass",
+    spacing: "normal",
+    botPersona: "classic",
+    botButtonStyle: "pill",
+    botAvatarStyle: "pulse"
+  },
+  glass: {
+    id: "glass",
+    name: "Glass",
+    label: "\u0632\u062C\u0627\u062C\u064A",
+    description: "\u0634\u0628\u0647 \u0634\u0641\u0627\u0641 \u0645\u0639 \u0637\u0628\u0642\u0627\u062A \u0632\u062C\u0627\u062C\u064A\u0629\u060C \u0645\u0645\u062A\u0627\u0632 \u0644\u0644\u062A\u0635\u0627\u0645\u064A\u0645 \u0627\u0644\u0641\u0627\u062E\u0631\u0629.",
+    accent: "#8B5CF6",
+    cardRadius: "24px",
+    buttonStyle: "rounded",
+    buttonRadius: "16px",
+    animation: "glow",
+    displayMode: "featured_first",
+    cardStyle: "glass",
+    cardOrientation: "landscape",
+    navbarStyle: "glass",
+    spacing: "relaxed",
+    botPersona: "premium",
+    botButtonStyle: "bubble",
+    botAvatarStyle: "halo"
+  },
+  luxury: {
+    id: "luxury",
+    name: "Luxury",
+    label: "\u0641\u0627\u062E\u0631",
+    description: "\u0623\u0644\u0648\u0627\u0646 \u0623\u0646\u064A\u0642\u0629\u060C \u0641\u0648\u0627\u0635\u0644 \u0648\u0627\u0633\u0639\u0629\u060C \u0648\u0632\u0627\u0648\u064A\u0629 \u0645\u0645\u064A\u0632\u0629 \u0644\u0644\u0639\u0644\u0627\u0645\u0627\u062A \u0627\u0644\u0631\u0627\u0642\u064A\u0629.",
+    accent: "#B45309",
+    cardRadius: "26px",
+    buttonStyle: "pill",
+    buttonRadius: "9999px",
+    animation: "scale",
+    displayMode: "featured_first",
+    cardStyle: "magazine",
+    cardOrientation: "landscape",
+    navbarStyle: "floating",
+    spacing: "relaxed",
+    botPersona: "luxury",
+    botButtonStyle: "bubble",
+    botAvatarStyle: "halo"
+  },
+  minimal: {
+    id: "minimal",
+    name: "Minimal",
+    label: "\u0628\u0633\u064A\u0637",
+    description: "\u0623\u0642\u0644 \u062A\u0641\u0627\u0635\u064A\u0644 \u0648\u0623\u0643\u062B\u0631 \u0648\u0636\u0648\u062D\u060C \u0645\u062B\u0627\u0644\u064A \u0644\u0644\u0645\u062A\u0627\u062C\u0631 \u0627\u0644\u0639\u0635\u0631\u064A\u0629.",
+    accent: "#111827",
+    cardRadius: "10px",
+    buttonStyle: "square",
+    buttonRadius: "8px",
+    animation: "none",
+    displayMode: "all_flat_grid",
+    cardStyle: "minimal",
+    cardOrientation: "portrait",
+    navbarStyle: "solid",
+    spacing: "compact",
+    botPersona: "classic",
+    botButtonStyle: "minimal",
+    botAvatarStyle: "pulse"
+  },
+  tech: {
+    id: "tech",
+    name: "Tech",
+    label: "\u062A\u0642\u0646\u064A",
+    description: "\u0623\u0633\u0644\u0648\u0628 \u062A\u0643\u0646\u0648\u0644\u0648\u062C\u064A \u0645\u0639 \u062D\u0648\u0627\u0641 \u0645\u062A\u0646\u0627\u0633\u0642\u0629 \u0648\u0623\u062F\u0648\u0627\u062A \u062A\u0645\u062B\u064A\u0644\u064A\u0629 \u062D\u062F\u064A\u062B\u0629.",
+    accent: "#06B6D4",
+    cardRadius: "16px",
+    buttonStyle: "rounded",
+    buttonRadius: "14px",
+    animation: "glow",
+    displayMode: "tabs_by_category",
+    cardStyle: "bold",
+    cardOrientation: "portrait",
+    navbarStyle: "glass",
+    spacing: "normal",
+    botPersona: "tech",
+    botButtonStyle: "minimal",
+    botAvatarStyle: "orb"
+  },
+  fashion: {
+    id: "fashion",
+    name: "Fashion",
+    label: "\u0645\u0648\u0636\u0629",
+    description: "\u0642\u0648\u0629 \u0627\u0644\u0644\u0648\u0646\u060C \u0625\u064A\u0642\u0627\u0639 \u0623\u0646\u064A\u0642\u060C \u0648\u0645\u0638\u0647\u0631 \u0645\u0631\u0646 \u0644\u0623\u0632\u064A\u0627\u0621 \u0648\u0645\u0627\u0631\u0643\u0627\u062A lifestyle.",
+    accent: "#EC4899",
+    cardRadius: "22px",
+    buttonStyle: "pill",
+    buttonRadius: "9999px",
+    animation: "scale",
+    displayMode: "featured_first",
+    cardStyle: "magazine",
+    cardOrientation: "portrait",
+    navbarStyle: "floating",
+    spacing: "relaxed",
+    botPersona: "fashion",
+    botButtonStyle: "bubble",
+    botAvatarStyle: "hover"
+  },
+  bold: {
+    id: "bold",
+    name: "Bold",
+    label: "\u062C\u0631\u064A\u0621",
+    description: "\u0639\u0646\u0627\u0635\u0631 \u0648\u0627\u0636\u062D\u0629\u060C \u0623\u0644\u0648\u0627\u0646 \u0645\u062A\u064A\u0646\u0629\u060C \u0648\u0645\u0638\u0647\u0631 \u062A\u0637\u0644\u0628\u064A \u064A\u0644\u0641\u062A \u0627\u0644\u0627\u0646\u062A\u0628\u0627\u0647.",
+    accent: "#F59E0B",
+    cardRadius: "28px",
+    buttonStyle: "rounded",
+    buttonRadius: "18px",
+    animation: "scale",
+    displayMode: "featured_first",
+    cardStyle: "bold",
+    cardOrientation: "landscape",
+    navbarStyle: "floating",
+    spacing: "relaxed",
+    botPersona: "premium",
+    botButtonStyle: "bubble",
+    botAvatarStyle: "halo"
+  },
+  organic: {
+    id: "organic",
+    name: "Organic",
+    label: "\u0637\u0628\u064A\u0639\u064A",
+    description: "\u0645\u0638\u0647\u0631 \u0646\u0627\u0639\u0645 \u0648\u0645\u0631\u064A\u062D \u064A\u0646\u0627\u0633\u0628 \u0627\u0644\u0645\u0646\u062A\u062C\u0627\u062A \u0627\u0644\u0635\u062D\u064A\u0629 \u0648\u0627\u0644\u0637\u0628\u064A\u0639\u064A\u0629.",
+    accent: "#10B981",
+    cardRadius: "20px",
+    buttonStyle: "pill",
+    buttonRadius: "9999px",
+    animation: "lift",
+    displayMode: "by_categories_sections",
+    cardStyle: "classic",
+    cardOrientation: "portrait",
+    navbarStyle: "glass",
+    spacing: "normal",
+    botPersona: "wellness",
+    botButtonStyle: "pill",
+    botAvatarStyle: "pulse"
+  },
+  futuristic: {
+    id: "futuristic",
+    name: "Futuristic",
+    label: "\u0645\u0633\u062A\u0642\u0628\u0644\u064A",
+    description: "\u0623\u0646\u064A\u0642\u060C \u062D\u062F\u064A\u062B\u060C \u0648\u0645\u0644\u064A\u0621 \u0628\u0627\u0644\u062A\u0623\u062B\u064A\u0631\u0627\u062A \u0627\u0644\u0631\u0642\u0645\u064A\u0629 \u0648\u0627\u0644\u0639\u0627\u0643\u0633\u0627\u062A.",
+    accent: "#06B6D4",
+    cardRadius: "30px",
+    buttonStyle: "rounded",
+    buttonRadius: "16px",
+    animation: "glow",
+    displayMode: "tabs_by_category",
+    cardStyle: "glass",
+    cardOrientation: "landscape",
+    navbarStyle: "glass",
+    spacing: "relaxed",
+    botPersona: "futuristic",
+    botButtonStyle: "minimal",
+    botAvatarStyle: "orb"
+  },
+  premium: {
+    id: "premium",
+    name: "Premium",
+    label: "\u0645\u0645\u064A\u0632",
+    description: "\u0623\u0633\u0644\u0648\u0628 \u0645\u0645\u064A\u0632 \u064A\u0646\u0642\u0644 \u0627\u0644\u0645\u062A\u062C\u0631 \u0625\u0644\u0649 \u062A\u062C\u0631\u0628\u0629 \u0639\u0644\u0627\u0645\u0629 \u062A\u062C\u0627\u0631\u064A\u0629 \u0645\u062A\u0642\u062F\u0645\u0629.",
+    accent: "#8B5CF6",
+    cardRadius: "22px",
+    buttonStyle: "pill",
+    buttonRadius: "9999px",
+    animation: "lift",
+    displayMode: "featured_first",
+    cardStyle: "magazine",
+    cardOrientation: "landscape",
+    navbarStyle: "floating",
+    spacing: "relaxed",
+    botPersona: "premium",
+    botButtonStyle: "bubble",
+    botAvatarStyle: "halo"
+  },
+  classic: {
+    id: "classic",
+    name: "Classic",
+    label: "\u0643\u0644\u0627\u0633\u064A\u0643\u064A",
+    description: "\u0645\u0638\u0647\u0631 \u0645\u062A\u0648\u0627\u0632\u0646 \u064A\u0639\u0631\u0641\u0647 \u0627\u0644\u0632\u0628\u0648\u0646 \u0648\u064A\u0634\u0639\u0631\u0647 \u0628\u0627\u0644\u062B\u0642\u0629.",
+    accent: "#4F46E5",
+    cardRadius: "14px",
+    buttonStyle: "rounded",
+    buttonRadius: "12px",
+    animation: "lift",
+    displayMode: "by_categories_sections",
+    cardStyle: "classic",
+    cardOrientation: "portrait",
+    navbarStyle: "solid",
+    spacing: "normal",
+    botPersona: "classic",
+    botButtonStyle: "pill",
+    botAvatarStyle: "pulse"
+  },
+  market: {
+    id: "market",
+    name: "Market",
+    label: "\u062A\u062C\u0627\u0631\u064A",
+    description: "\u0645\u0646\u0627\u0633\u0628 \u0644\u0644\u0645\u062A\u0627\u062C\u0631 \u0627\u0644\u0643\u0628\u064A\u0631\u0629 \u0648\u0627\u0644\u0645\u0646\u062A\u062C\u0627\u062A \u0627\u0644\u0645\u0632\u0648\u062F\u0629 \u0628\u062E\u0635\u0648\u0645\u0627\u062A \u0648\u062A\u062C\u0627\u0631\u064A\u0627\u062A.",
+    accent: "#FB7185",
+    cardRadius: "16px",
+    buttonStyle: "rounded",
+    buttonRadius: "14px",
+    animation: "scale",
+    displayMode: "by_categories_sections",
+    cardStyle: "bold",
+    cardOrientation: "portrait",
+    navbarStyle: "solid",
+    spacing: "normal",
+    botPersona: "tech",
+    botButtonStyle: "pill",
+    botAvatarStyle: "pulse"
+  }
+};
+var STORE_STYLE_LIBRARY_LIST = Object.values(STORE_STYLE_LIBRARY);
+
 // src/studio/main.ts
+function buildReusableThemeConfig(sourceConfig) {
+  const config = JSON.parse(JSON.stringify(sourceConfig || {}));
+  delete config.store_identity;
+  delete config.messages;
+  delete config.store_messages;
+  delete config.modals_customization;
+  if (config.marketing?.whatsapp_floating) {
+    delete config.marketing.whatsapp_floating.phone;
+  }
+  return config;
+}
+function extractImportedStudioConfig(value) {
+  const candidate = value?.config && typeof value.config === "object" ? value.config : value;
+  if (!candidate || typeof candidate !== "object") {
+    throw new Error("\u0645\u0644\u0641 JSON \u0644\u0627 \u064A\u062D\u062A\u0648\u064A \u0639\u0644\u0649 \u0625\u0639\u062F\u0627\u062F\u0627\u062A \u0635\u0627\u0644\u062D\u0629");
+  }
+  return candidate;
+}
 function inferSmartDesignFromColor(hex) {
   const { h, s, l } = hexToHSL(normalizeHexColor(hex));
   let font = "Tajawal";
@@ -6318,6 +6514,14 @@ var StudioApp = class _StudioApp {
             </main>
             ${HelpModal.render()}
             <div class="sb-mobile-view-switcher">
+                <div class="sb-history-group sb-mobile-history-group" aria-label="\u0623\u062F\u0648\u0627\u062A \u0627\u0644\u062A\u0631\u0627\u062C\u0639">
+                    <button class="sb-icon-tool" data-history-action="undo" onclick="window.StudioUI.undo()" title="\u062A\u0631\u0627\u062C\u0639 (Ctrl+Z)" ${!studioState.canUndo() ? "disabled" : ""}>
+                        <i class="fas fa-undo"></i>
+                    </button>
+                    <button class="sb-icon-tool" data-history-action="redo" onclick="window.StudioUI.redo()" title="\u0625\u0639\u0627\u062F\u0629 (Ctrl+Y)" ${!studioState.canRedo() ? "disabled" : ""}>
+                        <i class="fas fa-redo"></i>
+                    </button>
+                </div>
                 <button class="sb-m-view-btn ${mobileView === "controls" ? "active" : ""}" onclick="window.StudioUI.setMobileView('controls')">
                     <i class="fas fa-sliders-h"></i> <span>\u0627\u0644\u062A\u062E\u0635\u064A\u0635</span>
                 </button>
@@ -6326,8 +6530,34 @@ var StudioApp = class _StudioApp {
                 </button>
             </div>
         `;
+    document.addEventListener("click", (e) => {
+      const dropdown = document.getElementById("sb-more-dropdown");
+      if (dropdown && dropdown.classList.contains("show")) {
+        const target = e.target;
+        if (!target?.closest(".sb-topbar-more-container")) {
+          dropdown.classList.remove("show");
+        }
+      }
+    });
   }
   static refreshActiveTab(preserveScroll = true) {
+    const currentTabInfo = Sidebar.getTabInfo(studioState.activeTab);
+    const kickerEl = document.getElementById("sb-active-kicker");
+    const titleEl = document.getElementById("sb-active-title");
+    if (kickerEl) kickerEl.textContent = currentTabInfo.kicker;
+    if (titleEl) titleEl.textContent = currentTabInfo.label;
+    document.querySelectorAll("#sb-tabs-rail .sb-rail-btn").forEach((btn) => {
+      const tab = btn.getAttribute("data-tab");
+      btn.classList.toggle("active", tab === studioState.activeTab);
+    });
+    document.querySelectorAll("#sb-mobile-tabs-bar .sb-mobile-tab-pill").forEach((btn) => {
+      const tab = btn.getAttribute("data-tab");
+      const isActive = tab === studioState.activeTab;
+      btn.classList.toggle("active", isActive);
+      if (isActive) {
+        btn.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "center" });
+      }
+    });
     const area = document.getElementById("sb-tab-content-area");
     if (!area) return;
     const currentScroll = preserveScroll ? area.scrollTop : 0;
@@ -6337,20 +6567,22 @@ var StudioApp = class _StudioApp {
     }
   }
   static handleStateUpdate(activeTab, changeType) {
-    const btnUndo = document.getElementById("btn-undo");
-    const btnRedo = document.getElementById("btn-redo");
-    if (btnUndo) btnUndo.disabled = !studioState.canUndo();
-    if (btnRedo) btnRedo.disabled = !studioState.canRedo();
+    document.querySelectorAll('[data-history-action="undo"]').forEach((button) => {
+      button.disabled = !studioState.canUndo();
+    });
+    document.querySelectorAll('[data-history-action="redo"]').forEach((button) => {
+      button.disabled = !studioState.canRedo();
+    });
     if (changeType === "tab") {
-      document.querySelectorAll("#sb-tabs-rail .sb-rail-btn").forEach((btn) => {
-        const tab = btn.getAttribute("data-tab");
-        btn.classList.toggle("active", tab === activeTab);
-      });
       _StudioApp.refreshActiveTab(false);
     } else if (changeType === "device") {
       const pw = document.getElementById("preview-wrapper");
       if (pw) {
         pw.className = `sb-preview-wrapper preview-frame-${studioState.currentDevice}`;
+      }
+      const previewDeviceSwitcher = document.getElementById("preview-device-switcher");
+      if (previewDeviceSwitcher) {
+        previewDeviceSwitcher.classList.toggle("is-desktop", studioState.currentDevice === "desktop");
       }
       const dh = document.getElementById("preview-device-header");
       if (dh) {
@@ -6407,6 +6639,15 @@ var StudioApp = class _StudioApp {
       redo: () => _StudioApp.redo(),
       openHelpModal: () => HelpModal.open(),
       closeHelpModal: () => HelpModal.close(),
+      toggleMoreMenu: (e) => {
+        if (e) {
+          e.stopPropagation();
+        }
+        const dropdown = document.getElementById("sb-more-dropdown");
+        if (dropdown) {
+          dropdown.classList.toggle("show");
+        }
+      },
       handleIdentityChange: (key, value) => {
         studioState.updateConfig((cfg) => {
           if (!cfg.store_identity) cfg.store_identity = {};
@@ -6766,15 +7007,11 @@ var StudioApp = class _StudioApp {
         const pillContainer = document.getElementById("theme-category-pills");
         if (pillContainer) {
           pillContainer.querySelectorAll(".sb-badge-pill").forEach((b) => {
-            b.style.background = "var(--sb-surface)";
-            b.style.borderColor = "var(--sb-border)";
-            b.style.color = "var(--sb-text)";
+            b.classList.remove("active");
           });
         }
         if (clickedBtn) {
-          clickedBtn.style.background = "var(--sb-primary)";
-          clickedBtn.style.borderColor = "var(--sb-primary)";
-          clickedBtn.style.color = "#FFFFFF";
+          clickedBtn.classList.add("active");
         }
         const cards = document.querySelectorAll(".sb-preset-theme-card");
         cards.forEach((c) => {
@@ -6857,6 +7094,14 @@ var StudioApp = class _StudioApp {
         }, true, "full_sync");
         _StudioApp.refreshActiveTab(true);
       },
+      handleButtonStyleChange: (style, radius) => {
+        studioState.updateConfig((cfg) => {
+          if (!cfg.shapes) cfg.shapes = {};
+          cfg.shapes.button_style = style;
+          cfg.shapes.button_radius = radius;
+        }, true, "full_sync");
+        _StudioApp.refreshActiveTab(true);
+      },
       applyStyleLibraryPreset: (presetId) => {
         const preset = STORE_STYLE_LIBRARY[presetId] || STORE_STYLE_LIBRARY["modern-soft"];
         if (!preset) return;
@@ -6910,7 +7155,7 @@ var StudioApp = class _StudioApp {
         if (!el) return;
         try {
           const parsed = JSON.parse(el.value);
-          const { sanitizedConfig } = sanitizeStorefrontConfig(parsed);
+          const { sanitizedConfig } = sanitizeStorefrontConfig(extractImportedStudioConfig(parsed));
           studioState.pushHistory();
           studioState.config = sanitizedConfig;
           studioState.sendLiveUpdateToPreview();
@@ -6927,7 +7172,7 @@ var StudioApp = class _StudioApp {
         reader.onload = (e) => {
           try {
             const parsed = JSON.parse(e.target?.result);
-            const { sanitizedConfig } = sanitizeStorefrontConfig(parsed);
+            const { sanitizedConfig } = sanitizeStorefrontConfig(extractImportedStudioConfig(parsed));
             studioState.pushHistory();
             studioState.config = sanitizedConfig;
             studioState.sendLiveUpdateToPreview();
@@ -7026,6 +7271,38 @@ ${JSON.stringify(promptConfig, null, 2)}`;
         URL.revokeObjectURL(url);
         Toast.show("\u062A\u0645 \u062A\u0646\u0632\u064A\u0644 \u0645\u0644\u0641 \u0627\u0644\u0625\u0639\u062F\u0627\u062F\u0627\u062A \u{1F4E5}");
       },
+      downloadThemeTemplate: () => {
+        const idInput = document.getElementById("theme-export-id");
+        const nameInput = document.getElementById("theme-export-name");
+        const descriptionInput = document.getElementById("theme-export-description");
+        const id = (idInput?.value || "custom_theme").trim().toLowerCase().replace(/[^a-z0-9_-]+/g, "_");
+        if (!id) {
+          Toast.show("\u0623\u062F\u062E\u0644 \u0645\u0639\u0631\u0641\u064B\u0627 \u0635\u0627\u0644\u062D\u064B\u0627 \u0644\u0644\u0642\u0627\u0644\u0628 \u0623\u0648\u0644\u0627\u064B", "error");
+          return;
+        }
+        const config = buildReusableThemeConfig(studioState.config);
+        const colors = config.light_theme?.colors || {};
+        const template = {
+          id,
+          name: (nameInput?.value || "\u0642\u0627\u0644\u0628 \u0645\u062A\u062C\u0631 \u062C\u062F\u064A\u062F").trim(),
+          description: (descriptionInput?.value || "\u062A\u0635\u0645\u064A\u0645 \u062C\u0627\u0647\u0632 \u0642\u0627\u0628\u0644 \u0644\u0644\u062A\u062E\u0635\u064A\u0635 \u0644\u0645\u062A\u062C\u0631\u0643.").trim(),
+          category: "\u0642\u0648\u0627\u0644\u0628 \u0645\u062E\u0635\u0635\u0629",
+          preview: {
+            primary: colors.primary || "#4F46E5",
+            accent: colors.accent || "#06B6D4",
+            background: colors.bg_body || "#F8FAFC"
+          },
+          config
+        };
+        const blob = new Blob([JSON.stringify(template, null, 2)], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement("a");
+        anchor.href = url;
+        anchor.download = `theme_${id}.json`;
+        anchor.click();
+        URL.revokeObjectURL(url);
+        Toast.show("\u062A\u0645 \u062A\u0646\u0632\u064A\u0644 \u0645\u0644\u0641 \u0627\u0644\u0642\u0627\u0644\u0628 \u0627\u0644\u062C\u0627\u0647\u0632. \u0636\u0639\u0647 \u062F\u0627\u062E\u0644 templates/themes/ \u062B\u0645 \u0623\u0636\u0641\u0647 \u0625\u0644\u0649 manifest.json \u{1F4E6}", "success");
+      },
       resetAllDefaults: () => {
         if (!confirm("\u26A0\uFE0F \u0647\u0644 \u0623\u0646\u062A \u0645\u062A\u0623\u0643\u062F \u0645\u0646 \u0627\u0633\u062A\u0639\u0627\u062F\u0629 \u0643\u0627\u0641\u0629 \u0625\u0639\u062F\u0627\u062F\u0627\u062A \u0627\u0644\u0645\u062A\u062C\u0631 \u0625\u0644\u0649 \u0627\u0644\u0648\u0636\u0639 \u0627\u0644\u0627\u0641\u062A\u0631\u0627\u0636\u064A\u061F \u0633\u062A\u0641\u0642\u062F \u0627\u0644\u062A\u0639\u062F\u064A\u0644\u0627\u062A \u063A\u064A\u0631 \u0627\u0644\u0645\u0646\u0634\u0648\u0631\u0629.")) return;
         studioState.resetToDefaults();
@@ -7041,14 +7318,21 @@ ${JSON.stringify(promptConfig, null, 2)}`;
         }
         try {
           const token = studioState.merchantToken || localStorage.getItem("merchant_token") || sessionStorage.getItem("merchant_token");
-          if (!token) {
-            Toast.show("\u064A\u062C\u0628 \u062A\u0633\u062C\u064A\u0644 \u0627\u0644\u062F\u062E\u0648\u0644 \u0643\u062A\u0627\u062C\u0631 \u0644\u062A\u062A\u0645\u0643\u0646 \u0645\u0646 \u0627\u0644\u0646\u0634\u0631 \u{1F512}", "error");
-            setTimeout(() => {
-              window.location.replace("login.html?redirect=store-builder.html");
-            }, 1200);
+          const publishConfig = await studioState.buildPublishConfig();
+          if (studioState.isGuestMode || !token) {
+            try {
+              const cfgStr = JSON.stringify(publishConfig);
+              localStorage.setItem(`nalsh_storefront_config_${studioState.merchantUsername}`, cfgStr);
+              localStorage.setItem("nalsh_storefront_config_guest_draft", cfgStr);
+            } catch (e) {
+            }
+            Toast.show("\u062A\u0645 \u062D\u0641\u0638 \u062A\u0635\u0645\u064A\u0645\u0643 \u0645\u062D\u0644\u064A\u0627\u064B \u0643\u0645\u0633\u0648\u062F\u0629 \u0628\u0646\u062C\u0627\u062D! \u{1F4BE}", "success");
+            if (confirm("\u0623\u0646\u062A \u062D\u0627\u0644\u064A\u0627\u064B \u0641\u064A \u0648\u0636\u0639 \u0627\u0644\u0645\u0639\u0627\u064A\u0646\u0629 \u0627\u0644\u062A\u062C\u0631\u064A\u0628\u064A. \u062A\u0645 \u062D\u0641\u0638 \u0643\u0627\u0641\u0629 \u062A\u0639\u062F\u064A\u0644\u0627\u062A\u0643 \u0645\u062D\u0644\u064A\u0627\u064B. \u0647\u0644 \u062A\u0648\u062F \u0627\u0644\u0627\u0646\u062A\u0642\u0627\u0644 \u0625\u0644\u0649 \u062A\u0633\u062C\u064A\u0644 \u0627\u0644\u062F\u062E\u0648\u0644 \u0644\u0646\u0634\u0631\u0647\u0627 \u0633\u062D\u0627\u0628\u064A\u0627\u064B \u0639\u0644\u0649 \u0645\u062A\u062C\u0631\u0643 \u0627\u0644\u0645\u0628\u0627\u0634\u0631\u061F")) {
+              window.location.href = "login.html?redirect=store-builder.html";
+            }
             return;
           }
-          const { sanitizedConfig, notices } = sanitizeStorefrontConfig(studioState.config, studioState.merchantPlanType);
+          const { sanitizedConfig, notices } = sanitizeStorefrontConfig(publishConfig, studioState.merchantPlanType);
           studioState.config = sanitizedConfig;
           const headers = {
             "Content-Type": "application/json",
@@ -7073,14 +7357,11 @@ ${JSON.stringify(promptConfig, null, 2)}`;
             return;
           }
           const result = await res.json().catch(() => null);
-          const isSuccessfulPublish = !!(result && (result.status === "success" || result.status === "ok" || result.success === true || result.saved === true || result.updated === true || result.config || result.message || result.data || result.id));
+          const isSuccessfulPublish = !!(res.ok && result && (result.status === "success" || result.status === "ok" || result.success === true || result.saved === true || result.updated === true));
           if (res.ok && isSuccessfulPublish) {
             try {
               const cfgStr = JSON.stringify(sanitizedConfig);
               localStorage.setItem(`nalsh_storefront_config_${studioState.merchantUsername}`, cfgStr);
-              localStorage.setItem("nalsh_storefront_config", cfgStr);
-              localStorage.setItem("nalsh_storefront_config_v2", cfgStr);
-              localStorage.setItem("nalsh_storefront_config_store", cfgStr);
             } catch (e) {
             }
             fetch(WORKER_API_URL, {
@@ -7104,8 +7385,6 @@ ${JSON.stringify(promptConfig, null, 2)}`;
             try {
               const cfgStr = JSON.stringify(sanitizedConfig);
               localStorage.setItem(`nalsh_storefront_config_${studioState.merchantUsername}`, cfgStr);
-              localStorage.setItem("nalsh_storefront_config", cfgStr);
-              localStorage.setItem("nalsh_storefront_config_v2", cfgStr);
             } catch (e) {
             }
             Toast.show(`\u26A0\uFE0F \u062A\u0645 \u062D\u0641\u0638 \u0627\u0644\u062A\u0639\u062F\u064A\u0644 \u0645\u062D\u0644\u064A\u0627\u064B \u0643\u0645\u0633\u0648\u062F\u0629 (${errMsg})`, "info");
@@ -7263,6 +7542,91 @@ ${JSON.stringify(promptConfig, null, 2)}`;
         }, true, "full_sync");
         _StudioApp.refreshActiveTab(true);
         Toast.show("\u062A\u0645 \u062A\u062D\u062F\u064A\u062B \u0625\u0639\u062F\u0627\u062F\u0627\u062A \u0627\u0644\u0634\u0631\u064A\u0637 \u0627\u0644\u0639\u0644\u0648\u064A \u2705");
+      },
+      handleNavTopBarStyleChange: (style) => {
+        studioState.updateConfig((cfg) => {
+          const settings = cfg.navigation_settings || (cfg.navigation_settings = {});
+          settings.top_bar = { ...normalizeTopBarSettings(settings.top_bar), navbar_style: style };
+        }, true, "full_sync");
+        _StudioApp.refreshActiveTab(true);
+        Toast.show("\u062A\u0645 \u062A\u062D\u062F\u064A\u062B \u0634\u0643\u0644 \u0627\u0644\u0634\u0631\u064A\u0637 \u0627\u0644\u0639\u0644\u0648\u064A \u2705");
+      },
+      handleNavBottomBarStyleChange: (style) => {
+        studioState.updateConfig((cfg) => {
+          const settings = cfg.navigation_settings || (cfg.navigation_settings = {});
+          settings.bottom_bar = { ...settings.bottom_bar || {}, style };
+        }, true, "full_sync");
+        _StudioApp.refreshActiveTab(true);
+        Toast.show("\u062A\u0645 \u062A\u062D\u062F\u064A\u062B \u0634\u0643\u0644 \u0627\u0644\u0634\u0631\u064A\u0637 \u0627\u0644\u0633\u0641\u0644\u064A \u2705");
+      },
+      handleNavBarDimensionChange: (bar, style, key, value) => {
+        const stringValueKeys = ["desktop_layout", "mobile_shape", "show_labels", "bar_color", "active_color"];
+        const numericValue = stringValueKeys.includes(key) ? value : Math.max(0, Number(value) || 0);
+        studioState.updateConfig((cfg) => {
+          const settings = cfg.navigation_settings || (cfg.navigation_settings = {});
+          const section = bar === "top" ? settings.top_bar || (settings.top_bar = normalizeTopBarSettings(DEFAULT_TOP_BAR_SETTINGS)) : settings.bottom_bar || (settings.bottom_bar = { items: normalizeBottomNavItems(DEFAULT_NAV_ITEMS) });
+          if (!section.style_settings) section.style_settings = {};
+          if (!section.style_settings[style]) section.style_settings[style] = {};
+          section.style_settings[style][key] = numericValue;
+        }, true, "full_sync");
+      },
+      handleNavCopyStyle: (bar, style) => {
+        if (!confirm("\u0633\u064A\u062A\u0645 \u0646\u0633\u062E \u0625\u0639\u062F\u0627\u062F\u0627\u062A \u0647\u0630\u0627 \u0627\u0644\u0634\u0643\u0644 \u0625\u0644\u0649 \u0628\u0642\u064A\u0629 \u0627\u0644\u0623\u0634\u0643\u0627\u0644. \u0647\u0644 \u062A\u0631\u064A\u062F \u0627\u0644\u0645\u062A\u0627\u0628\u0639\u0629\u061F")) return;
+        studioState.updateConfig((cfg) => {
+          const settings = cfg.navigation_settings || (cfg.navigation_settings = {});
+          const section = bar === "top" ? settings.top_bar || (settings.top_bar = normalizeTopBarSettings(DEFAULT_TOP_BAR_SETTINGS)) : settings.bottom_bar || (settings.bottom_bar = { items: normalizeBottomNavItems(DEFAULT_NAV_ITEMS) });
+          const source = section.style_settings?.[style] || {};
+          if (!section.style_settings) section.style_settings = {};
+          ["solid", "glass", "floating", "neon", "minimal", "island"].forEach((targetStyle) => {
+            section.style_settings[targetStyle] = { ...source };
+          });
+        }, true, "full_sync");
+        _StudioApp.refreshActiveTab(true);
+        Toast.show("\u062A\u0645 \u0646\u0633\u062E \u0625\u0639\u062F\u0627\u062F\u0627\u062A \u0627\u0644\u0634\u0643\u0644 \u0625\u0644\u0649 \u062C\u0645\u064A\u0639 \u0627\u0644\u0623\u0634\u0643\u0627\u0644 \u2705");
+      },
+      handleNavResetStyle: (bar, style) => {
+        if (!confirm("\u0633\u064A\u062A\u0645 \u0625\u0639\u0627\u062F\u0629 \u0636\u0628\u0637 \u0625\u0639\u062F\u0627\u062F\u0627\u062A \u0647\u0630\u0627 \u0627\u0644\u0634\u0643\u0644 \u0641\u0642\u0637. \u0647\u0644 \u062A\u0631\u064A\u062F \u0627\u0644\u0645\u062A\u0627\u0628\u0639\u0629\u061F")) return;
+        studioState.updateConfig((cfg) => {
+          const settings = cfg.navigation_settings || (cfg.navigation_settings = {});
+          const section = bar === "top" ? settings.top_bar : settings.bottom_bar;
+          if (section?.style_settings?.[style]) {
+            delete section.style_settings[style];
+          }
+        }, true, "full_sync");
+        _StudioApp.refreshActiveTab(true);
+        Toast.show("\u062A\u0645\u062A \u0625\u0639\u0627\u062F\u0629 \u0636\u0628\u0637 \u0627\u0644\u0634\u0643\u0644 \u0627\u0644\u062D\u0627\u0644\u064A \u0641\u0642\u0637 \u{1F504}");
+      },
+      handleNavMobilePreset: (style, preset) => {
+        const presets = {
+          balanced: { mobile_shape: "classic", mobile_width: 100, mobile_height: 66, mobile_bottom: 0, item_radius: 14, icon_size: 1.15, item_gap: 8, show_labels: true },
+          minimal: { mobile_shape: "pill", mobile_width: 92, mobile_height: 58, mobile_bottom: 12, item_radius: 999, icon_size: 1.05, item_gap: 5, show_labels: false },
+          focus: { mobile_shape: "center", mobile_width: 96, mobile_height: 72, mobile_bottom: 8, item_radius: 18, icon_size: 1.3, item_gap: 10, show_labels: true }
+        };
+        const selected = presets[preset];
+        studioState.updateConfig((cfg) => {
+          const settings = cfg.navigation_settings || (cfg.navigation_settings = {});
+          const bottom = settings.bottom_bar || (settings.bottom_bar = { items: normalizeBottomNavItems(DEFAULT_NAV_ITEMS) });
+          if (!bottom.style_settings) bottom.style_settings = {};
+          bottom.style_settings[style] = { ...bottom.style_settings[style] || {}, ...selected };
+        }, true, "full_sync");
+        _StudioApp.refreshActiveTab(true);
+        Toast.show(`\u062A\u0645 \u062A\u0637\u0628\u064A\u0642 \u0642\u0627\u0644\u0628 \u0627\u0644\u0647\u0627\u062A\u0641: ${preset === "balanced" ? "\u0645\u062A\u0648\u0627\u0632\u0646" : preset === "minimal" ? "\u062E\u0641\u064A\u0641" : "\u062A\u0631\u0643\u064A\u0632"} \u2705`);
+      },
+      handleNavDesktopPreset: (style, preset) => {
+        const presets = {
+          dock: { desktop_layout: "dock", desktop_width: 560, desktop_height: 64, desktop_bottom: 22, radius: 999, item_radius: 999, icon_size: 1.2, item_gap: 8, show_labels: true },
+          wide: { desktop_layout: "wide", desktop_width: 920, desktop_height: 70, desktop_bottom: 18, radius: 22, item_radius: 16, icon_size: 1.15, item_gap: 12, show_labels: true },
+          compact: { desktop_layout: "compact", desktop_width: 440, desktop_height: 56, desktop_bottom: 14, radius: 18, item_radius: 12, icon_size: 1.05, item_gap: 5, show_labels: false }
+        };
+        const selected = presets[preset];
+        studioState.updateConfig((cfg) => {
+          const settings = cfg.navigation_settings || (cfg.navigation_settings = {});
+          const bottom = settings.bottom_bar || (settings.bottom_bar = { items: normalizeBottomNavItems(DEFAULT_NAV_ITEMS) });
+          if (!bottom.style_settings) bottom.style_settings = {};
+          bottom.style_settings[style] = { ...bottom.style_settings[style] || {}, ...selected };
+        }, true, "full_sync");
+        _StudioApp.refreshActiveTab(true);
+        Toast.show(`\u062A\u0645 \u062A\u0637\u0628\u064A\u0642 \u0642\u0627\u0644\u0628 \u0627\u0644\u0643\u0645\u0628\u064A\u0648\u062A\u0631: ${preset === "dock" ? "Dock \u0623\u0646\u064A\u0642" : preset === "wide" ? "\u0639\u0631\u064A\u0636" : "\u0645\u0636\u063A\u0648\u0637"} \u2705`);
       },
       handleNavPreset: (presetKey) => {
         const preset = NAVIGATION_PRESETS[presetKey] || NAVIGATION_PRESETS.default;

@@ -426,7 +426,8 @@
             'dashboard': 'الرئيسية',
             'management': 'المنتجات',
             'orders': 'الطلبات',
-            'settings': 'الإعدادات'
+            'settings': 'الإعدادات',
+            'templates': 'قوالب المتجر'
         };
         const titleEl = document.getElementById('page-title');
         if (titleEl) titleEl.textContent = titles[tab] || 'لوحة التحكم';
@@ -505,6 +506,8 @@
                 if (typeof window.fetchCategoryTree === 'function' && (!window.flatCategoriesList || window.flatCategoriesList.length === 0)) {
                     window.fetchCategoryTree();
                 }
+            } else if (tab === 'templates') {
+                if (typeof window.ensureTemplatesHTML === 'function') window.ensureTemplatesHTML();
             } else if (tab === 'orders') {
                 await Promise.all([
                     window.ModuleLoader.load('orders'),

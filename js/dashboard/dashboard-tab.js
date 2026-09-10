@@ -52,13 +52,13 @@
                     </div>
                 </div>
 
-                <div class="dash-action-btn" onclick="window.location.href='store-builder.html';">
+                <div class="dash-action-btn" onclick="switchT('templates');">
                     <div class="dash-action-icon" style="background: linear-gradient(135deg, rgba(79, 70, 229, 0.12), rgba(6, 182, 212, 0.12)); color: #4f46e5;">
                         <i class="fas fa-palette"></i>
                     </div>
                     <div class="dash-action-info">
-                        <span class="dash-action-title">مصمم المتجر</span>
-                        <span class="dash-action-subtitle">تخصيص الواجهة</span>
+                        <span class="dash-action-title">قوالب المتجر</span>
+                        <span class="dash-action-subtitle">معاينة ونشر التصميم</span>
                     </div>
                 </div>
 

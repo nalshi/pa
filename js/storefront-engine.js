@@ -701,6 +701,11 @@
     if (config.navigation_settings && typeof window.applyNavigationSettings === 'function') {
       window.applyNavigationSettings(config);
     }
+
+    // 9. تطبيق إعدادات المساعد الذكي
+    if (typeof window.applyNalshBotConfig === 'function') {
+      window.applyNalshBotConfig();
+    }
   };
 
   /**
@@ -708,115 +713,31 @@
    */
   async function loadInitialConfig() {
     const urlParams = new URLSearchParams(window.location.search);
+    // Template previews are composed by ThemeEngine; prevent the legacy loader
+    // from replacing the requested preset with the published store config.
+    if (urlParams.has('template_preview') || urlParams.get('local_preview') === '1') {
+      return null;
+    }
     const storeParam = urlParams.get('store');
     const pathParts = window.location.pathname.replace(/^\/+|\/+$/g, '').split('/');
     const storeFromPath = pathParts.length > 0 && !['', 'index.html', 'store-builder.html', 'login.html'].includes(pathParts[0].toLowerCase()) ? pathParts[0] : null;
     const targetStore = (storeParam || storeFromPath || '').toLowerCase();
 
-    // 1. فحص التخزين المحلي لآخر إعدادات تم حفظها للمتجر
-    const possibleKeys = [];
-    if (targetStore) {
-      possibleKeys.push(`nalsh_storefront_config_${targetStore}`);
-    }
-    possibleKeys.push(
-      'nalsh_storefront_config',
-      'nalsh_storefront_config_store',
-      'nalsh_storefront_config_merchant',
-      'nalsh_storefront_config_v2',
-      'nalsh_theme_config'
-    );
+    if (!targetStore) return null;
 
-    for (const key of possibleKeys) {
-      const saved = localStorage.getItem(key);
-      if (saved) {
-        try {
-          const parsed = JSON.parse(saved);
-          window.initStorefront(parsed);
-          // ✅ جلب أحدث config سحابي في الخلفية لضمان تزامن تعديلات الستوديو
-          _fetchCloudConfigInBackground(targetStore, false);
-          return parsed;
-        } catch (e) {}
-      }
-    }
-
-    // 2. محاولة جلب ملف theme-config.json
-    try {
-      const res = await fetch('theme-config.json?v=' + Date.now());
-      if (res.ok) {
-        const jsonConfig = await res.json();
-        window.initStorefront(jsonConfig);
-        // ✅ جلب أحدث config سحابي في الخلفية
-        _fetchCloudConfigInBackground(targetStore, false);
-        return jsonConfig;
-      }
-    } catch (e) {}
-
-    // 3. ✅ Cloud Fallback: للأجهزة الجديدة / Incognito / بعد تعديل الستوديو
-    return await _fetchCloudConfigInBackground(targetStore, true);
-  }
-
-  /**
-   * جلب config المتجر من Worker API
-   * يضمن أن تعديلات الستوديو (الأشكال، الألوان، إلخ) تنعكس فوراً على المتجر
-   */
-  async function _fetchCloudConfigInBackground(targetStore, applyImmediately) {
+    // إعدادات كل تاجر منشورة في مساره الخاص، بلا fallback إلى إعدادات متجر آخر.
     try {
       const workerUrl = resolveWorkerApiUrl();
-      const payload = { action: 'get_storefront_config' };
-      if (targetStore) payload.username = targetStore;
-
-      const res = await fetch(workerUrl, {
-        method: 'POST',
-        cache: 'no-store',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
-      });
-
+      const configUrl = `${workerUrl.replace(/\/$/, '')}/stores/${encodeURIComponent(targetStore)}/storefront_config.json`;
+      const res = await fetch(`${configUrl}?v=${Date.now()}`, { cache: 'no-store' });
       if (!res.ok) return null;
-
-      const json = await res.json().catch(() => null);
-      const cfg = json && (
-        (json.data && json.data.config) ||
-        json.config ||
-        (json.version ? json : null) ||
-        (json.theme_version ? json : null)
-      );
-      // قبول theme_version أيضاً كبديل لـ version (للتوافق مع النسخ القديمة)
-      if (!cfg || typeof cfg !== 'object' || (!cfg.version && !cfg.theme_version)) return null;
-
-      // مقارنة updated_at: لا نطبّق إذا النسخة المحلية أحدث أو مساوية
-      const storeKey = targetStore
-        ? ('nalsh_storefront_config_' + targetStore)
-        : 'nalsh_storefront_config';
-
-      if (!applyImmediately) {
-        try {
-          const localRaw = localStorage.getItem(storeKey);
-          if (localRaw) {
-            const localCfg = JSON.parse(localRaw);
-            const localTs = localCfg.updated_at || 0;
-            const remoteTs = cfg.updated_at || 0;
-            // إذا الكونفيغ السحابي أحدث → طبّقه فوراً حتى مع applyImmediately=false
-            if (remoteTs <= localTs) {
-              // النسخة المحلية محدّثة، فقط حدّث localStorage بصمت
-              localStorage.setItem(storeKey, JSON.stringify(cfg));
-              localStorage.setItem('nalsh_storefront_config', JSON.stringify(cfg));
-              return cfg;
-            }
-          }
-        } catch (e) {}
-      }
-
-      // تحديث localStorage بأحدث إعدادات من السيرفر
-      try {
-        localStorage.setItem(storeKey, JSON.stringify(cfg));
-        localStorage.setItem('nalsh_storefront_config', JSON.stringify(cfg));
-      } catch (e) {}
-
-      // تطبيق الإعدادات الجديدة (السحابي يأخذ الأولوية دائماً)
-      window.initStorefront(cfg);
-      return cfg;
+      const config = await res.json();
+      if (!config || typeof config !== 'object') return null;
+      localStorage.setItem(`nalsh_storefront_config_${targetStore}`, JSON.stringify(config));
+      window.initStorefront(config);
+      return config;
     } catch (err) {
+      console.warn(`[StorefrontEngine] تعذر تحميل إعدادات ${targetStore} من مساره المنشور.`, err);
       return null;
     }
   }

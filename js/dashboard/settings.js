@@ -18,9 +18,9 @@
                         <div class="s-val"><span id="display-store-name" class="store-name-display">...</span> <i class="fas fa-chevron-left"></i></div>
                     </div>
 
-                    <div class="setting-item" onclick="window.location.href='store-builder.html'" style="background: linear-gradient(90deg, rgba(79, 70, 229, 0.08), transparent); border-color: rgba(79, 70, 229, 0.3);">
-                        <div class="s-label"><i class="fas fa-palette text-primary"></i> مصمم المتجر والتخصيص البصري <span style="background:var(--primary); color:white; font-size:0.65rem; padding:2px 6px; border-radius:50px;">جديد</span></div>
-                        <div class="s-val">تخصيص كامل <i class="fas fa-chevron-left" style="color:var(--primary);"></i></div>
+                    <div class="setting-item" onclick="switchT('templates')" style="background: linear-gradient(90deg, rgba(79, 70, 229, 0.08), transparent); border-color: rgba(79, 70, 229, 0.3);">
+                        <div class="s-label"><i class="fas fa-palette text-primary"></i> قوالب المتجر الجاهزة <span style="background:var(--primary); color:white; font-size:0.65rem; padding:2px 6px; border-radius:50px;">جديد</span></div>
+                        <div class="s-val">اختيار ومعاينة <i class="fas fa-chevron-left" style="color:var(--primary);"></i></div>
                     </div>
 
                     <div class="setting-item" onclick="openM('setting-welcome-modal')">

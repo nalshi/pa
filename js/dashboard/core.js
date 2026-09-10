@@ -33,8 +33,9 @@
         'save_fcm_token', 'get_firebase_config',
         'get_ai_assistant_config', 'save_ai_assistant_config',
         'get_whatsapp_config', 'save_whatsapp_config',
-        'get_storefront_config', 'save_storefront_config', 'get_storefront_themes'
+        'get_storefront_config', 'save_storefront_config', 'get_storefront_themes', 'save_storefront_selection'
     ];
+    window.WORKER_NO_FALLBACK_ACTIONS = new Set(['save_storefront_selection']);
 
     window.PLACEHOLDER_IMG = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400"><rect width="400" height="400" fill="%23f8fafc"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" font-family="sans-serif" font-size="28" font-weight="bold" fill="%2394a3b8">لا توجد صورة</text></svg>';
 
@@ -44,6 +45,9 @@
     window.isSavingSettingLock = false;
     window.isSavingProductLock = false;
     window.currentMerchantData = {};
+    // Localhost is still a normal authenticated dashboard environment.
+    // Do not silently replace the merchant with a demo account.
+    window.isLocalTemplateMode = false;
     window.appDataReady = false;
     window.introAnimDone = false;
     window.initialOrdersLoaded = false;
@@ -90,19 +94,10 @@
 
     const jwtPayload = window.checkTokenValidity();
     if (!jwtPayload) {
-        const isLocalFile = window.location.protocol === 'file:';
-        if (!isLocalFile) {
-            localStorage.removeItem('merchant_token');
-            sessionStorage.removeItem('merchant_token');
-            window.location.replace('login.html');
-            throw new Error("جاري التحويل لصفحة تسجيل الدخول...");
-        } else {
-            console.warn("تشغيل محلي (file://) بدون توكن مسجل.");
-            window.jwtPayload = { username: 'merchant', user_id: '1', store_name: 'متجري' };
-            window.merchantToken = 'local_dev_token';
-            window.merchantUsername = 'merchant';
-            window.merchantUserId = '1';
-        }
+        localStorage.removeItem('merchant_token');
+        sessionStorage.removeItem('merchant_token');
+        window.location.replace('login.html');
+        throw new Error("جاري التحويل لصفحة تسجيل الدخول...");
     } else {
         window.jwtPayload = jwtPayload;
         window.merchantToken = localStorage.getItem('merchant_token') || sessionStorage.getItem('merchant_token');
@@ -548,7 +543,7 @@
                 result = await executeFetch(targetUrl, useWorker);
             } catch (fetchErr) {
                 // محاولة الاتصال بالـ API_URL الاحتياطي إذا فشل الـ Worker (مثل 404 أو تعذر الاتصال)
-                if (useWorker && targetUrl !== window.API_URL) {
+                if (useWorker && targetUrl !== window.API_URL && !window.WORKER_NO_FALLBACK_ACTIONS.has(action)) {
                     result = await executeFetch(window.API_URL, false);
                 } else {
                     throw fetchErr;
@@ -931,6 +926,21 @@
     window.verifySessionAndLoad = async function () {
         const ls = document.getElementById('initial-loading-screen');
         try {
+            if (window.isLocalTemplateMode) {
+                window.currentMerchantData = {
+                    username: 'demo_store',
+                    store_name: 'متجر التجربة المحلية',
+                    settings: { store_name: 'متجر التجربة المحلية' }
+                };
+                window.dashboardConnectionChecked = true;
+                window.dashboardSnapshotLoaded = true;
+                if (typeof window.applySettingsToUI === 'function') {
+                    window.applySettingsToUI(window.currentMerchantData);
+                }
+                window.hideInitialLoadingScreen();
+                await window.switchT('templates');
+                return;
+            }
             sessionStorage.setItem('merchant_session_started', 'true');
             // يبدأ bootApp الاتصال مسبقاً؛ الاحتفاظ بالوعد يمنع فتح قناة ثانية.
             let realtimeConnection = window.connectDashboardSocket();
