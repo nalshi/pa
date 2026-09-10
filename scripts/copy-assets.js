@@ -54,7 +54,7 @@ if (!fs.existsSync(distDir)) {
 }
 
 // 1. نسخ مجلدات Runtime التي تعتمد عليها الصفحات القديمة
-const runtimeDirs = ['css', 'js'];
+const runtimeDirs = ['css', 'js', 'webfonts'];
 for (const dir of runtimeDirs) {
   const src  = path.resolve(rootDir, dir);
   const dest = path.resolve(distDir, dir);
@@ -62,6 +62,14 @@ for (const dir of runtimeDirs) {
     safeCopy(src, dest);
     console.log(`  ✓ ${dir}/ → dist/${dir}/`);
   }
+
+}
+
+// مكتبة القوالب المعيارية: تُنشر كملفات مستقلة لتدعم التحميل الكسول.
+const templatesDir = path.resolve(rootDir, 'templates');
+if (fs.existsSync(templatesDir)) {
+  safeCopy(templatesDir, path.resolve(distDir, 'templates'));
+  console.log('  ✓ templates/ → dist/templates/');
 }
 
 // 2. نسخ الملفات الثابتة من الجذر
@@ -145,10 +153,13 @@ const headersContent = `/*
   Cache-Control: no-cache, no-store, must-revalidate
 
 /js/*
-  Cache-Control: no-cache, no-store, must-revalidate
+  Cache-Control: public, max-age=300, must-revalidate
 
 /css/*
-  Cache-Control: no-cache, no-store, must-revalidate
+  Cache-Control: public, max-age=300, must-revalidate
+
+/templates/*
+  Cache-Control: public, max-age=300, must-revalidate
 
 /manifest.json
   Cache-Control: no-cache, no-store, must-revalidate
